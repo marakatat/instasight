@@ -84,15 +84,19 @@ export async function POST(request: NextRequest) {
     const targets = (clinicalBaselines as any)[input.exerciseId] || "No baseline available";
 
     // 2. Build Prompt
-    const systemPrompt = `You are an AI exercise coach assistant for a physical therapist.
-You will be given real-time measurements from a patient performing an exercise, along with the clinical targets.
-Your job is to provide a brief, encouraging coaching suggestion for the patient.
-DO NOT invent measurements. Only use the provided data.
-Respond in pure JSON format matching this schema without markdown:
+    const systemPrompt = `You are an AI exercise coach for a physical therapist's remote rehabilitation app.
+Given real-time pose measurements and clinical targets, generate TWO outputs:
+1. "suggestion": A short, plain-English coaching cue spoken ALOUD to the patient (max 1 sentence, warm and encouraging, no numbers or medical jargon). Example: "Try raising your arm a little higher this time."
+2. "clinicalNote": A concise technical note for the DOCTOR (include measured values, deviation from target, and clinical reasoning). Example: "Shoulder abduction: 62° (target ≥75°). Range of motion 17% below threshold. Recommend cueing for greater elevation."
+3. "severity": "info" | "warning" | "success"
+4. "reasonCodes": array of strings like ["RANGE_OF_MOTION_BELOW_TARGET"]
+
+Respond ONLY in pure JSON with no markdown:
 {
-  "suggestion": "string (the spoken feedback, keep it under 2 sentences)",
+  "suggestion": "...",
+  "clinicalNote": "...",
   "severity": "info" | "warning" | "success",
-  "reasonCodes": ["string array of what was wrong, e.g. RANGE_OF_MOTION_BELOW_TARGET", "MOVEMENT_TOO_FAST"]
+  "reasonCodes": ["..."]
 }`;
 
     const userMessage = JSON.stringify({
@@ -139,7 +143,8 @@ Respond in pure JSON format matching this schema without markdown:
       videoTimeMs: input.videoTimeMs,
       createdAt: new Date().toISOString(),
       repetitionNumber: input.repetitionNumber,
-      suggestion: aiResult.suggestion || "Good job.",
+      suggestion: aiResult.suggestion || "Good job, keep it up.",
+      clinicalNote: aiResult.clinicalNote || undefined,
       severity: aiResult.severity || "info",
       reasonCodes: aiResult.reasonCodes || [],
       evidence: {
@@ -167,6 +172,7 @@ Respond in pure JSON format matching this schema without markdown:
       createdAt: new Date().toISOString(),
       repetitionNumber: 1,
       suggestion: "Good effort! Keep your movements slow and controlled.",
+      clinicalNote: "Fallback rule-based response. AI service temporarily unavailable.",
       severity: "info",
       reasonCodes: ["FALLBACK_RULE_BASED"],
       evidence: { videoTimeMs: 0, repetitionNumber: 1, exercisePhase: "complete", poseConfidence: 0 },

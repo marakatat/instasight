@@ -13,7 +13,8 @@ export function CameraPoseView({
   onAIEvent,
   onAIPromise,
   shouldTriggerAI,
-  onLoaded
+  onLoaded,
+  liveFeedback
 }: {
   isRecording: boolean;
   onRecordingComplete: (blob: Blob) => void;
@@ -21,6 +22,7 @@ export function CameraPoseView({
   onAIPromise?: (p: Promise<void>) => void;
   shouldTriggerAI?: () => boolean;
   onLoaded?: () => void;
+  liveFeedback?: { suggestion: string; severity: string } | null;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -265,10 +267,27 @@ export function CameraPoseView({
         <video ref={videoRef} className="absolute inset-0 h-full w-full" style={{ objectFit: "contain" }} playsInline muted />
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ objectFit: "contain" }} />
         
+        {/* REC badge */}
         {isRecording && (
           <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg border-2 border-red-400 z-50">
             <div className="w-4 h-4 bg-white rounded-full animate-pulse"></div>
             <span className="font-bold tracking-wider">REC</span>
+          </div>
+        )}
+
+        {/* Live AI Feedback overlay — bottom of camera, big and readable */}
+        {liveFeedback && (
+          <div className={`absolute bottom-0 left-0 right-0 z-50 px-6 py-4 text-center ${
+            liveFeedback.severity === "warning"
+              ? "bg-orange-500/90"
+              : liveFeedback.severity === "success"
+              ? "bg-green-600/90"
+              : "bg-blue-600/90"
+          }`}>
+            <p className="text-white text-xl font-bold drop-shadow">
+              {liveFeedback.severity === "warning" ? "⚠️" : liveFeedback.severity === "success" ? "✅" : "💬"}
+              {" "}{liveFeedback.suggestion}
+            </p>
           </div>
         )}
       </div>

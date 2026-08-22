@@ -2,10 +2,10 @@ export type UserRole = "doctor" | "patient";
 
 export type ExercisePhase =
   | "idle"
-  | " 준비"
   | "lifting"
   | "holding"
   | "lowering"
+  | "raising"
   | "complete";
 
 export type FeedbackSeverity = "info" | "warning" | "success";
@@ -68,7 +68,10 @@ export type AIFeedbackEvent = {
   sessionId: string;
   videoTimeMs: number;
   createdAt: string;
+  // Simple, encouraging message spoken aloud to the patient
   suggestion: string;
+  // Technical clinical note shown only to the doctor
+  clinicalNote?: string;
   severity: "info" | "warning" | "success";
   reasonCodes: string[];
   evidence: MovementEvidence;

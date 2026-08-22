@@ -9,16 +9,22 @@ export function ExerciseSession() {
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [liveFeedback, setLiveFeedback] = useState<{ suggestion: string; severity: string } | null>(null);
+  const liveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiEventsRef = useRef<AIFeedbackEvent[]>([]);
   const pendingAICallsRef = useRef<Promise<void>[]>([]);
   const aiCallCountRef = useRef(0);
+  const sessionIdRef = useRef<string>(`session_${Date.now()}`);
   const AI_CALL_LIMIT = 5;
 
   const handleStart = () => {
     aiEventsRef.current = [];
     pendingAICallsRef.current = [];
     aiCallCountRef.current = 0;
+    sessionIdRef.current = `session_${Date.now()}`;
+    setSessionUrl(null);
     setIsRecording(true);
   };
 
@@ -38,8 +44,9 @@ export function ExerciseSession() {
     setUploadStatus("Uploading session to Doctor Dashboard...");
 
     const formData = new FormData();
-    formData.append("video", blob, "demo-session.webm");
+    formData.append("video", blob, "recording.webm");
     formData.append("events", JSON.stringify(aiEventsRef.current));
+    formData.append("sessionId", sessionIdRef.current);
 
     try {
       const res = await fetch("/api/sessions/upload", {
@@ -47,7 +54,10 @@ export function ExerciseSession() {
         body: formData,
       });
       if (res.ok) {
-        setUploadStatus(`✅ Done! ${aiEventsRef.current.length} AI keynotes sent to Doctor Dashboard.`);
+        const result = await res.json();
+        const sid = result.sessionId || sessionIdRef.current;
+        setUploadStatus(`✅ Session uploaded! ${aiEventsRef.current.length} AI keynotes saved.`);
+        setSessionUrl(`/doctor/sessions/${sid}`);
       } else {
         setUploadStatus("❌ Failed to upload session.");
       }
@@ -61,6 +71,11 @@ export function ExerciseSession() {
 
   const handleAIEvent = useCallback((event: AIFeedbackEvent) => {
     aiEventsRef.current.push(event);
+    // Show live feedback banner to the patient!
+    setLiveFeedback({ suggestion: event.suggestion, severity: event.severity });
+    // Auto-dismiss after 8 seconds
+    if (liveFeedbackTimerRef.current) clearTimeout(liveFeedbackTimerRef.current);
+    liveFeedbackTimerRef.current = setTimeout(() => setLiveFeedback(null), 8000);
   }, []);
 
   // Called from CameraPoseView when a rep is detected — we track the promise here
@@ -89,12 +104,23 @@ export function ExerciseSession() {
           onAIPromise={handleAIPromise}
           shouldTriggerAI={shouldTriggerAI}
           onLoaded={() => setIsCameraReady(true)}
+          liveFeedback={liveFeedback}
         />
         
         {isUploading && (
           <div className="p-4 bg-blue-100 text-blue-800 rounded-xl font-bold text-center border-2 border-blue-300">
             {uploadStatus}
           </div>
+        )}
+
+        {sessionUrl && !isUploading && (
+          <a
+            href={sessionUrl}
+            target="_blank"
+            className="block p-4 bg-green-600 text-white rounded-xl font-bold text-center text-lg hover:bg-green-700 transition-colors shadow-md"
+          >
+            🩺 Open Doctor Dashboard →
+          </a>
         )}
       </div>
 
