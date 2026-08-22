@@ -49,21 +49,23 @@ export default async function DoctorSessionPage({
   const videoUrl = session?.video_url || null;
 
   return (
-    <main className="min-h-screen p-8 bg-gray-100">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Session Review</h1>
-          <p className="text-gray-600 mt-1">
-            Exercise: Right Arm Raise · Session ID: <code className="text-sm bg-gray-200 px-1 rounded">{sessionId}</code>
+    <main className="min-h-[100dvh] bg-figma-base p-6 md:p-12 selection:bg-figma-teal selection:text-white">
+      <div className="max-w-[1600px] mx-auto">
+        <header className="mb-12">
+          <h1 className="text-4xl font-bold text-zinc-900 tracking-tight">Session Review</h1>
+          <p className="text-zinc-500 font-medium mt-2 flex items-center gap-2">
+            Exercise: <span className="font-bold text-zinc-900">Right Arm Raise</span> 
+            <span className="text-zinc-300">•</span>
+            Session ID: <code className="text-sm bg-zinc-200/50 text-zinc-600 px-2 py-0.5 rounded-md">{sessionId}</code>
           </p>
         </header>
 
         {events.length > 0 || videoUrl ? (
           <SessionVideoReview events={events} videoUrl={videoUrl} />
         ) : (
-          <div className="bg-white p-8 rounded-xl text-center border shadow-sm">
-            <h2 className="text-xl font-bold text-gray-800">No session data found.</h2>
-            <p className="text-gray-600 mt-2">
+          <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200/50 text-center shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)]">
+            <h2 className="text-2xl font-bold text-zinc-900 tracking-tight">No session data found.</h2>
+            <p className="text-zinc-500 font-medium mt-2">
               Go to the Patient view, complete an exercise, then click "Stop & Send to Doctor".
             </p>
           </div>

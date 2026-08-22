@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    
+    // Check for authenticated user to link the session to a patient
+    const { data: { user } } = await supabase.auth.getUser();
+
     const formData = await request.formData();
     const videoFile = formData.get("video") as File;
     const eventsString = formData.get("events") as string;
@@ -42,6 +47,7 @@ export async function POST(request: NextRequest) {
       .from("sessions")
       .upsert({
         id: sessionId,
+        patient_id: user?.id || null, // Link to patient if logged in
         video_url: videoUrl || null,
         exercise_id: "right_arm_raise",
         completed_at: new Date().toISOString(),

@@ -107,132 +107,138 @@ export function ExerciseSession() {
   const signalQualityPct = Math.round((telemetry?.signalQuality ?? 0.9) * 100);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Right Arm Raise</h1>
-          <p className="text-slate-600">Please sit upright and follow the voice instructions.</p>
-        </div>
-
-        <CameraPoseView
-          isRecording={isRecording}
-          onRecordingComplete={handleRecordingComplete}
-          onAIEvent={handleAIEvent}
-          onAIPromise={handleAIPromise}
-          shouldTriggerAI={shouldTriggerAI}
-          onLoaded={() => setIsCameraReady(true)}
-          liveFeedback={liveFeedback}
-          eegTelemetry={telemetry}
-          sessionId={sessionIdRef.current}
-        />
-
-        {isUploading && (
-          <div className="p-4 bg-blue-100 text-blue-800 rounded-xl font-bold text-center border-2 border-blue-300 animate-pulse">
-            {uploadStatus}
+    <div className="min-h-[100dvh] bg-black p-4 md:p-8 selection:bg-teal-500 selection:text-white">
+      <div className="max-w-[1600px] mx-auto grid gap-6 lg:grid-cols-[1fr_380px]">
+        {/* Main Camera Area */}
+        <div className="flex flex-col h-full bg-zinc-950 rounded-[2.5rem] border border-white/10 overflow-hidden relative shadow-2xl">
+          <div className="absolute top-6 left-8 z-10">
+            <h1 className="text-2xl font-bold text-white tracking-tight">Right Arm Raise</h1>
+            <p className="text-zinc-400 font-medium text-sm mt-1">Please sit upright and follow the voice instructions.</p>
           </div>
-        )}
 
-        {sessionUrl && !isUploading && (
-          <a
-            href={sessionUrl}
-            target="_blank"
-            className="block p-4 bg-green-600 text-white rounded-xl font-bold text-center text-lg hover:bg-green-700 transition-colors shadow-md"
-          >
-            🩺 Open Doctor Dashboard →
-          </a>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-6">
-        {/* Voice & Session Controls */}
-        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 shadow-sm">
-          <h2 className="text-xl font-semibold text-blue-900 mb-4">Controls</h2>
-          <VoiceControls
+          <CameraPoseView
             isRecording={isRecording}
-            isCameraReady={isCameraReady}
-            onStart={handleStart}
-            onStop={handleStop}
+            onRecordingComplete={handleRecordingComplete}
+            onAIEvent={handleAIEvent}
+            onAIPromise={handleAIPromise}
+            shouldTriggerAI={shouldTriggerAI}
+            onLoaded={() => setIsCameraReady(true)}
+            liveFeedback={liveFeedback}
+            eegTelemetry={telemetry}
+            sessionId={sessionIdRef.current}
           />
-        </div>
 
-        {/* Real-time EEG Telemetry HUD */}
-        <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 shadow-lg flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🧠</span>
-              <h3 className="font-bold text-base text-slate-100">EEG Biofeedback</h3>
+          {isUploading && (
+            <div className="m-4 p-4 bg-blue-950/80 text-blue-300 rounded-2xl font-bold text-center border border-blue-500/40 animate-pulse backdrop-blur-md">
+              {uploadStatus}
             </div>
-            <span
-              className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
-                isHardwareOnline
-                  ? "bg-emerald-950 text-emerald-300 border-emerald-500/40"
-                  : "bg-indigo-950 text-indigo-300 border-indigo-500/40"
-              }`}
+          )}
+
+          {sessionUrl && !isUploading && (
+            <a
+              href={sessionUrl}
+              target="_blank"
+              className="block m-4 p-4 bg-teal-600 text-white rounded-2xl font-bold text-center text-lg hover:bg-teal-500 transition-colors shadow-lg"
             >
-              {isHardwareOnline ? "● ESP32 Hardware Live" : "● Simulation Mode"}
-            </span>
-          </div>
-
-          {/* Motor Attempt Gauge */}
-          <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
-            <div className="flex justify-between items-center text-xs mb-1.5">
-              <span className="text-slate-300 font-medium">Motor Intent Attempt</span>
-              <span
-                className={`font-bold font-mono text-sm ${
-                  motorIntentPct >= 65 ? "text-emerald-400" : "text-amber-400"
-                }`}
-              >
-                {motorIntentPct}%
-              </span>
-            </div>
-            <div className="w-full bg-slate-700 h-2.5 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  motorIntentPct >= 65
-                    ? "bg-gradient-to-r from-teal-400 to-emerald-500"
-                    : "bg-gradient-to-r from-sky-400 to-amber-400"
-                }`}
-                style={{ width: `${motorIntentPct}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-              <span>Mu ERD: {telemetry?.erdPercentage ?? 0}%</span>
-              <span>{telemetry?.isAttemptDetected ? "⚡ Intent Active" : "Resting"}</span>
-            </div>
-          </div>
-
-          {/* Signal Quality */}
-          <div className="flex items-center justify-between text-xs bg-slate-800/50 p-2.5 rounded-lg">
-            <span className="text-slate-300">Signal Quality:</span>
-            <span className="font-mono text-emerald-400 font-bold">{signalQualityPct}%</span>
-          </div>
-
-          {/* Mini Real-time Waveform Preview */}
-          {telemetry?.filteredPreview && telemetry.filteredPreview.length > 0 && (
-            <div>
-              <div className="text-[11px] text-slate-400 mb-1">Live Waveform (uV):</div>
-              <div className="h-10 bg-slate-950 rounded-lg p-1.5 flex items-center gap-0.5 border border-slate-800 overflow-hidden">
-                {telemetry.filteredPreview.map((val, idx) => {
-                  const height = Math.min(100, Math.max(10, 50 + val * 1.5));
-                  return (
-                    <div
-                      key={idx}
-                      className="flex-1 bg-sky-400/80 rounded-sm transition-all duration-150"
-                      style={{ height: `${height}%` }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+              🩺 Open Doctor Dashboard →
+            </a>
           )}
         </div>
 
-        {/* Doctor's Prescription Note */}
-        <div className="bg-gray-50 p-6 rounded-2xl border">
-          <h3 className="font-semibold mb-2">Doctor's Note:</h3>
-          <p className="text-sm text-gray-700">
-            "Remember to lift slowly and keep your elbow as straight as comfortable. Do 5 repetitions."
-          </p>
+        {/* Sidebar Controls & Real-time EEG Biofeedback */}
+        <div className="flex flex-col gap-6 h-full">
+          <div className="bg-zinc-950 p-6 rounded-[2.5rem] border border-white/10 flex flex-col gap-6 relative overflow-hidden shadow-2xl">
+            <h2 className="text-xl font-semibold text-white">Session Controls</h2>
+
+            <div>
+              <VoiceControls
+                isRecording={isRecording}
+                isCameraReady={isCameraReady}
+                onStart={handleStart}
+                onStop={handleStop}
+              />
+            </div>
+
+            {/* Real-time EEG Telemetry HUD */}
+            <div className="bg-black/60 backdrop-blur-xl p-4 rounded-2xl border border-white/10 flex flex-col gap-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🧠</span>
+                  <h3 className="font-bold text-sm text-zinc-100">EEG Biofeedback</h3>
+                </div>
+                <span
+                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold border ${
+                    isHardwareOnline
+                      ? "bg-emerald-950 text-emerald-300 border-emerald-500/40"
+                      : "bg-indigo-950 text-indigo-300 border-indigo-500/40"
+                  }`}
+                >
+                  {isHardwareOnline ? "● ESP32 Hardware" : "● Simulation Mode"}
+                </span>
+              </div>
+
+              {/* Motor Attempt Gauge */}
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                <div className="flex justify-between items-center text-xs mb-1.5">
+                  <span className="text-zinc-300 font-medium">Motor Intent Attempt</span>
+                  <span
+                    className={`font-bold font-mono text-sm ${
+                      motorIntentPct >= 65 ? "text-teal-400" : "text-amber-400"
+                    }`}
+                  >
+                    {motorIntentPct}%
+                  </span>
+                </div>
+                <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      motorIntentPct >= 65
+                        ? "bg-gradient-to-r from-teal-400 to-emerald-500"
+                        : "bg-gradient-to-r from-sky-400 to-amber-400"
+                    }`}
+                    style={{ width: `${motorIntentPct}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
+                  <span>Mu ERD: {telemetry?.erdPercentage ?? 0}%</span>
+                  <span>{telemetry?.isAttemptDetected ? "⚡ Intent Active" : "Resting"}</span>
+                </div>
+              </div>
+
+              {/* Signal Quality */}
+              <div className="flex items-center justify-between text-xs bg-white/5 p-2.5 rounded-xl border border-white/5">
+                <span className="text-zinc-300">Signal Quality:</span>
+                <span className="font-mono text-teal-400 font-bold">{signalQualityPct}%</span>
+              </div>
+
+              {/* Mini Real-time Waveform Preview */}
+              {telemetry?.filteredPreview && telemetry.filteredPreview.length > 0 && (
+                <div>
+                  <div className="text-[10px] text-zinc-400 mb-1 font-medium">Live Waveform (uV):</div>
+                  <div className="h-9 bg-black/80 rounded-lg p-1 flex items-center gap-0.5 border border-white/5 overflow-hidden">
+                    {telemetry.filteredPreview.map((val, idx) => {
+                      const height = Math.min(100, Math.max(12, 50 + val * 1.5));
+                      return (
+                        <div
+                          key={idx}
+                          className="flex-1 bg-teal-400/80 rounded-xs transition-all duration-150"
+                          style={{ height: `${height}%` }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Doctor's Prescription Note */}
+            <div className="mt-auto pt-4 border-t border-white/10">
+              <h3 className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Doctor's Note</h3>
+              <p className="text-sm text-zinc-300 font-medium leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">
+                "Remember to lift slowly and keep your elbow as straight as comfortable. Do 5 repetitions."
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
