@@ -5,15 +5,31 @@ import { initializePoseLandmarker } from "@/lib/pose/poseTracker";
 import { DrawingUtils, PoseLandmarkerResult, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { angle, Point } from "@/lib/pose/geometry";
 import { evaluateArmRaise } from "@/lib/pose/exerciseRules";
-import { PoseMetrics } from "@/types/rehabilitation";
+import { PoseMetrics, AIFeedbackEvent } from "@/types/rehabilitation";
 
-export function CameraPoseView() {
+export function CameraPoseView({ 
+  isRecording, 
+  onRecordingComplete,
+  onAIEvent,
+  onAIPromise,
+  shouldTriggerAI,
+  onLoaded
+}: {
+  isRecording: boolean;
+  onRecordingComplete: (blob: Blob) => void;
+  onAIEvent: (event: AIFeedbackEvent) => void;
+  onAIPromise?: (p: Promise<void>) => void;
+  shouldTriggerAI?: () => boolean;
+  onLoaded?: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  
   const [isLoaded, setIsLoaded] = useState(false);
   const [metrics, setMetrics] = useState<PoseMetrics | null>(null);
 
-  // We use refs to keep track of state across animation frames without triggering re-renders
   const metricsRef = useRef<PoseMetrics>({
     timestamp: 0,
     repetition: 0,
@@ -22,39 +38,78 @@ export function CameraPoseView() {
     rangeOfMotion: 0,
   });
 
+  // Handle Start/Stop commands from parent VoiceControls safely
+  useEffect(() => {
+    if (!mediaRecorderRef.current) return;
+    
+    if (isRecording && mediaRecorderRef.current.state === "inactive") {
+      console.log("Starting MediaRecorder...");
+      recordedChunksRef.current = [];
+      mediaRecorderRef.current.start();
+    } else if (!isRecording && mediaRecorderRef.current.state === "recording") {
+      console.log("Stopping MediaRecorder...");
+      mediaRecorderRef.current.stop();
+    }
+  }, [isRecording, isLoaded]); // Added isLoaded to dependencies so it checks again when camera mounts!
+
   useEffect(() => {
     let animationFrameId: number;
     let lastVideoTime = -1;
     let poseLandmarker: any;
+    let localStream: MediaStream | null = null;
 
     async function setupCameraAndMediaPipe() {
-      // 1. Initialize MediaPipe
       poseLandmarker = await initializePoseLandmarker();
 
-      // 2. Request Camera
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
+        video: { 
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user" 
+        },
       });
+      localStream = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        
+        videoRef.current.onloadeddata = () => {
+          setIsLoaded(true);
+          if (onLoaded) onLoaded();
+          predictWebcam();
+          
+          const recorder = new MediaRecorder(stream);
+          
+          // Request data every 1 second to ensure chunks are actually collected
+          recorder.start = function(timeslice) {
+             MediaRecorder.prototype.start.call(this, timeslice || 1000);
+          };
+
+          recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              recordedChunksRef.current.push(event.data);
+            }
+          };
+          recorder.onstop = () => {
+            // Use the actual mimetype recorded by the browser (crucial for Safari vs Chrome compatibility)
+            const mimeType = mediaRecorderRef.current?.mimeType || "video/webm";
+            const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+            onRecordingComplete(blob);
+            recordedChunksRef.current = [];
+          };
+          mediaRecorderRef.current = recorder;
+        };
+
         try {
           await videoRef.current.play();
-          setIsLoaded(true);
-          // 3. Start prediction loop
-          predictWebcam();
         } catch (err: any) {
-          // Ignore AbortError caused by React Strict Mode unmounting
-          if (err.name !== "AbortError") {
-            console.error("Error playing video:", err);
-          }
+          if (err.name !== "AbortError") console.error("Error playing video:", err);
         }
       }
     }
 
     async function predictWebcam() {
       if (!videoRef.current || !canvasRef.current || !poseLandmarker) return;
-
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
@@ -62,16 +117,13 @@ export function CameraPoseView() {
       if (ctx && video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime;
 
-        // Match canvas internal resolution to actual video resolution
         if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
         }
 
-        // Run MediaPipe Pose Detection
         const result = poseLandmarker.detectForVideo(video, performance.now());
         
-        // Draw the results
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
@@ -85,7 +137,6 @@ export function CameraPoseView() {
             });
           }
 
-          // Extract coordinates for Right Arm
           const landmarks = result.landmarks[0];
           const rightShoulder = landmarks[12];
           const rightElbow = landmarks[14];
@@ -103,47 +154,50 @@ export function CameraPoseView() {
               repetition: metricsRef.current.repetition,
             });
 
-            // If the phase changed from lowering to holding, it's a completed repetition
-            if (metricsRef.current.phase === "lowering" && newMetrics.phase === "holding") {
+            // Trigger AI when the patient completes a raise and starts lowering their arm
+            if (mediaRecorderRef.current?.state === "recording" && 
+                metricsRef.current.phase === "holding" && 
+                newMetrics.phase === "lowering") {
                 newMetrics.repetition += 1;
-                
-                // CALL THE AI ENDPOINT!
-                fetch("/api/ai/evaluate", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    sessionId: "session_demo",
-                    videoTimeMs: Math.round(video.currentTime * 1000),
-                    repetitionNumber: newMetrics.repetition,
-                    exerciseId: "right_arm_raise",
-                    pose: {
-                      shoulderAngle: newMetrics.rightShoulderAngle,
-                      elbowAngle: newMetrics.rightElbowAngle,
-                      movementDurationMs: 3000, // mock duration for now
-                      rangeOfMotion: newMetrics.rangeOfMotion,
-                      poseConfidence: 0.95
-                    },
-                    eeg: { signalQuality: 0.88, motorIntentScore: 0.73 } // simulated EEG
-                  })
-                })
-                .then(res => res.json())
-                .then(aiEvent => {
-                  if (aiEvent.suggestion) {
-                     window.speechSynthesis.cancel();
-                     window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
-                  }
-                })
-                .catch(err => console.error("AI Error:", err));
-            }
 
+                // Call AI but cap at 5 per session so upload doesn't hang
+                if (!shouldTriggerAI || shouldTriggerAI()) {
+                  const aiPromise = fetch("/api/ai/evaluate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      sessionId: "session_demo",
+                      videoTimeMs: Math.round(video.currentTime * 1000),
+                      repetitionNumber: newMetrics.repetition,
+                      exerciseId: "right_arm_raise",
+                      pose: {
+                        shoulderAngle: newMetrics.rightShoulderAngle,
+                        elbowAngle: newMetrics.rightElbowAngle,
+                        movementDurationMs: 3000,
+                        rangeOfMotion: newMetrics.rangeOfMotion,
+                        poseConfidence: 0.95
+                      },
+                      eeg: { signalQuality: 0.88, motorIntentScore: 0.73 }
+                    })
+                  })
+                  .then(res => res.json())
+                  .then((aiEvent: any) => {
+                    if (aiEvent.error || !aiEvent.suggestion) return;
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
+                    onAIEvent(aiEvent as AIFeedbackEvent);
+                  })
+                  .catch(err => console.error("AI Error:", err));
+
+                  if (onAIPromise) onAIPromise(aiPromise as unknown as Promise<void>);
+                }
+            }
             metricsRef.current = newMetrics;
             setMetrics(newMetrics);
           }
         }
         ctx.restore();
       }
-
-      // Loop
       animationFrameId = requestAnimationFrame(predictWebcam);
     }
 
@@ -151,45 +205,90 @@ export function CameraPoseView() {
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
+
+  const simulateRepetition = () => {
+    if (!isRecording) {
+      alert("Please click 'Start exercise' before simulating!");
+      return;
+    }
+    
+    const newRep = metricsRef.current.repetition + 1;
+    
+    // Fake the state machine update
+    setMetrics(prev => prev ? { ...prev, repetition: newRep, phase: "lowering" } : null);
+    metricsRef.current.repetition = newRep;
+    metricsRef.current.phase = "lowering";
+
+    fetch("/api/ai/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "session_demo_sim",
+        videoTimeMs: 2500, 
+        repetitionNumber: newRep,
+        exerciseId: "right_arm_raise",
+        pose: {
+          shoulderAngle: 62, // Intentionally low to trigger the "raise higher" AI feedback!
+          elbowAngle: 150,
+          movementDurationMs: 3000,
+          rangeOfMotion: 62,
+          poseConfidence: 0.99
+        },
+        eeg: { signalQuality: 0.9, motorIntentScore: 0.8 }
+      })
+    })
+    .then(res => res.json())
+    .then((aiEvent: AIFeedbackEvent) => {
+      if (aiEvent.suggestion) {
+         window.speechSynthesis.cancel();
+         window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
+      }
+      onAIEvent(aiEvent);
+    })
+    .catch(err => console.error("AI Error:", err));
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <div className="relative aspect-video w-full max-w-3xl overflow-hidden rounded-2xl bg-gray-900 border-4 border-gray-200 shadow-lg">
         {!isLoaded && (
           <div className="absolute inset-0 flex items-center justify-center text-white">
-            <p className="text-xl">Loading Camera & AI Tracking...</p>
+            <p className="text-xl animate-pulse">Loading Camera & AI Tracking...</p>
           </div>
         )}
         
-        <video
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full"
-          style={{ objectFit: "contain" }}
-          playsInline
-          muted
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 h-full w-full"
-          style={{ objectFit: "contain" }}
-        />
+        <video ref={videoRef} className="absolute inset-0 h-full w-full" style={{ objectFit: "contain" }} playsInline muted />
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ objectFit: "contain" }} />
+        
+        {isRecording && (
+          <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg border-2 border-red-400 z-50">
+            <div className="w-4 h-4 bg-white rounded-full animate-pulse"></div>
+            <span className="font-bold tracking-wider">REC</span>
+          </div>
+        )}
       </div>
 
-      {/* Demo Dashboard to see metrics live */}
       {metrics && (
         <div className="bg-white p-4 rounded-xl shadow border">
-          <h3 className="font-bold text-lg mb-2">Live Telemetry</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-lg">Live Telemetry</h3>
+            <button 
+              onClick={simulateRepetition}
+              className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-bold px-3 py-1.5 rounded shadow-sm border border-indigo-200 transition-colors"
+            >
+              🛠 Simulate Rep
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div><strong>Phase:</strong> {metrics.phase}</div>
             <div><strong>Reps:</strong> {metrics.repetition}</div>
-            <div><strong>Shoulder Angle:</strong> {metrics.rightShoulderAngle}°</div>
-            <div><strong>Elbow Angle:</strong> {metrics.rightElbowAngle}°</div>
+            <div><strong>Shoulder Angle:</strong> {Math.round(metrics.rightShoulderAngle)}°</div>
+            <div><strong>Elbow Angle:</strong> {Math.round(metrics.rightElbowAngle)}°</div>
             <div><strong>Feedback:</strong> <span className="text-red-600">{metrics.error || "Good"}</span></div>
           </div>
         </div>
