@@ -8,18 +8,29 @@ export function evaluateArmRaise(input: {
 }): PoseMetrics {
   const { shoulderAngle, elbowAngle, previousPhase, repetition } = input;
 
-  const isTooFast = false; // Replace with timestamp-based calculation.
+  const isTooFast = false;
   const isShoulderHighEnough = shoulderAngle >= 70;
   const elbowIsReasonable = elbowAngle > 120;
+  const isArmResting = shoulderAngle < 30;
 
   let error: string | undefined;
 
-  if (!isShoulderHighEnough) {
+  if (!isShoulderHighEnough && previousPhase === "holding") {
     error = "Try to raise your arm a little higher.";
   } else if (!elbowIsReasonable) {
     error = "Try to keep your arm more extended.";
-  } else if (isTooFast) {
-    error = "Slow down the movement.";
+  }
+
+  // State Machine for the repetition
+  let newPhase = previousPhase;
+  if (isArmResting) {
+    newPhase = "idle";
+  } else if (shoulderAngle >= 70) {
+    newPhase = "holding";
+  } else if (previousPhase === "idle" && shoulderAngle >= 30) {
+    newPhase = "raising";
+  } else if (previousPhase === "holding" && shoulderAngle < 70) {
+    newPhase = "lowering";
   }
 
   const movementScore = error ? 0.55 : 0.9;
@@ -27,7 +38,7 @@ export function evaluateArmRaise(input: {
   return {
     timestamp: Date.now(),
     repetition,
-    phase: isShoulderHighEnough ? "holding" : previousPhase,
+    phase: newPhase,
     rightShoulderAngle: shoulderAngle,
     rightElbowAngle: elbowAngle,
     movementScore,

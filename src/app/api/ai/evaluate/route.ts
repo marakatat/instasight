@@ -102,7 +102,7 @@ Respond in pure JSON format matching this schema without markdown:
     });
 
     // 3. Call OpenRouter
-    const model = "openai/gpt-4o-mini";
+    const model = "dots-studio/dots-3-note-preview:free";
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -158,7 +158,24 @@ Respond in pure JSON format matching this schema without markdown:
     return NextResponse.json(aiEvent);
 
   } catch (error) {
-    console.error("Evaluation Error:", error);
-    return NextResponse.json({ error: "Failed to evaluate movement" }, { status: 500 });
+    // On any failure (rate limit, parse error, etc) fall back to rule-based engine
+    console.error("Evaluation Error (falling back to rules):", error);
+    const fallback: AIFeedbackEvent = {
+      id: crypto.randomUUID(),
+      sessionId: "fallback",
+      videoTimeMs: 0,
+      createdAt: new Date().toISOString(),
+      repetitionNumber: 1,
+      suggestion: "Good effort! Keep your movements slow and controlled.",
+      severity: "info",
+      reasonCodes: ["FALLBACK_RULE_BASED"],
+      evidence: { videoTimeMs: 0, repetitionNumber: 1, exercisePhase: "complete", poseConfidence: 0 },
+      confidence: 0.7,
+      modelName: "rule-based-fallback",
+      modelVersion: "0.1.0",
+      source: "rules",
+      therapistReviewed: false
+    };
+    return NextResponse.json(fallback);
   }
 }

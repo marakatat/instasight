@@ -10,8 +10,8 @@ export function SessionVideoReview({ events }: { events: AIFeedbackEvent[] }) {
   function jumpToEvent(event: AIFeedbackEvent) {
     setSelectedEvent(event);
     if (videoRef.current) {
-      // jump to timestamp
-      videoRef.current.currentTime = event.videoTimeMs / 1000;
+      // jump to timestamp, fallback to 0 if missing
+      videoRef.current.currentTime = (event.videoTimeMs || 0) / 1000;
       
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
@@ -27,12 +27,12 @@ export function SessionVideoReview({ events }: { events: AIFeedbackEvent[] }) {
       {/* Video Player */}
       <div className="space-y-4">
         <div className="relative aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-lg border-4 border-gray-100">
-           {/* For the hackathon, you can point this to a recorded MP4 demo */}
+           {/* Pointing to the live-uploaded WebM file! */}
           <video
             ref={videoRef}
             controls
             className="w-full h-full object-cover"
-            src="/demo-session.mp4" 
+            src="/demo-session.webm" 
           />
         </div>
 
@@ -51,16 +51,16 @@ export function SessionVideoReview({ events }: { events: AIFeedbackEvent[] }) {
               </div>
               <div className="col-span-2 mt-2">
                 <p className="font-semibold text-gray-500 mb-1">Evidence (Inputs to AI):</p>
-                <ul className="list-disc list-inside space-y-1 bg-white p-3 rounded-lg border">
-                  <li>Shoulder Angle: {selectedEvent.evidence.shoulderAngle}°</li>
-                  <li>Elbow Angle: {selectedEvent.evidence.elbowAngle}°</li>
-                  <li>Movement Duration: {selectedEvent.evidence.movementDurationMs} ms</li>
-                  <li>Pose Confidence: {(selectedEvent.evidence.poseConfidence * 100).toFixed(0)}%</li>
+                <ul className="list-disc list-inside space-y-1 bg-white p-3 rounded border text-sm text-gray-800">
+                  <li>Shoulder Angle: {selectedEvent.evidence?.shoulderAngle || 'N/A'}°</li>
+                  <li>Elbow Angle: {selectedEvent.evidence?.elbowAngle || 'N/A'}°</li>
+                  <li>Movement Duration: {selectedEvent.evidence?.movementDurationMs || 'N/A'}ms</li>
+                  <li>Pose Confidence: {((selectedEvent.evidence?.poseConfidence || 0) * 100).toFixed(0)}%</li>
                 </ul>
               </div>
               <div className="col-span-2 mt-2">
-                <p className="font-semibold text-gray-500 mb-1">Decision Logic (Reasons):</p>
-                <p className="bg-white p-3 rounded-lg border text-red-600">{selectedEvent.reasonCodes.join(", ") || "Movement was optimal."}</p>
+                <p className="font-semibold text-gray-500 mb-1">Decision Logic (Reason Codes):</p>
+                <p className="bg-white p-3 rounded-lg border text-red-600">{(selectedEvent.reasonCodes || []).join(", ") || "No reason codes provided"}</p>
               </div>
               <div className="col-span-2 text-xs text-gray-400 mt-2 flex justify-between">
                 <span>Model: {selectedEvent.modelName}</span>
@@ -82,9 +82,9 @@ export function SessionVideoReview({ events }: { events: AIFeedbackEvent[] }) {
           {events.length === 0 ? (
             <p className="text-sm text-gray-500">No events recorded.</p>
           ) : (
-            events.map((event) => (
+            events.map((event, idx) => (
               <button
-                key={event.id}
+                key={event.id || idx}
                 onClick={() => jumpToEvent(event)}
                 className={`block w-full rounded-xl border p-4 text-left transition-colors ${
                   selectedEvent?.id === event.id ? "bg-blue-100 border-blue-300 shadow-sm" : "bg-white hover:bg-gray-100"
@@ -94,12 +94,12 @@ export function SessionVideoReview({ events }: { events: AIFeedbackEvent[] }) {
                   <span className="font-bold text-blue-900">
                     {formatTime(event.videoTimeMs)}
                   </span>
-                  <span className={`text-xs px-2 py-1 rounded-full font-bold ${
-                    event.severity === "warning" ? "bg-red-100 text-red-700" :
-                    event.severity === "success" ? "bg-green-100 text-green-700" :
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    (event.severity || 'info') === "warning" ? "bg-red-100 text-red-700" :
+                    (event.severity || 'info') === "success" ? "bg-green-100 text-green-700" :
                     "bg-gray-200 text-gray-700"
                   }`}>
-                    {event.severity.toUpperCase()}
+                    {(event.severity || 'info').toUpperCase()}
                   </span>
                 </div>
                 <div className="text-sm font-medium text-gray-800">{event.suggestion}</div>
