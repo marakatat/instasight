@@ -7,7 +7,9 @@
  * 1. ADS1115 16-bit ADC sampling (Channel 0: Frontal 'F', Channel 1: Occipital 'O')
  * 2. Persistent Storage (NVS via Preferences): saves Wi-Fi SSID, Password & Next.js Server Host/Port
  * 3. Fallback AP & Web Portal (http://192.168.4.1) with full diagnostic failure reason reporting
- * 4. Wi-Fi Auto-Scan nearby networks in setup portal
+ * 4. Station Web Configuration (http://<ESP32_IP>/):
+ *    - When connected to Wi-Fi, hosts a clean, simple web page to view status and change
+ *      the Next.js server URL/port/deviceId without restarting or re-entering Wi-Fi credentials!
  * 5. Direct HTTP Client connection to Next.js Route Handlers (NO Python / FastAPI needed):
  *    - Polls: GET /api/device/commands?deviceId=<dev_id> (receives START_STREAM / STOP_STREAM)
  *    - Streams: POST /api/device/telemetry (sends batched raw microvolt EEG samples)
@@ -374,6 +376,20 @@ void savePreferences(const String& ssid, const String& pass, const String& host,
   Serial.println("[Config] Settings saved to Flash!");
 }
 
+void saveServerPreferences(const String& host, int port, const String& devId) {
+  prefs.begin("instasight", false);  // read-write
+  prefs.putString("host", host);
+  prefs.putInt("port", port);
+  prefs.putString("dev_id", devId);
+  prefs.end();
+
+  server_host = host;
+  server_port = port;
+  device_id = devId;
+
+  Serial.printf("[Config] Updated Target URL: http://%s:%d (DevID: %s)\n", server_host.c_str(), server_port, device_id.c_str());
+}
+
 void clearPreferences() {
   prefs.begin("instasight", false);
   prefs.clear();
@@ -474,7 +490,100 @@ String getConnectionFailureHtml() {
 }
 
 // =========================================================================
-//  HTML Web Portal for Configuration (Captive Portal)
+//  Station HTML Web Page: Simple Target Server & Command URL Configuration
+// =========================================================================
+String getStationConfigPageHtml() {
+  String statusBadge = is_streaming
+    ? "<span style='background:#065f46;color:#6ee7b7;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:11px;'>🟢 STREAMING</span>"
+    : "<span style='background:#334155;color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:11px;'>⚪ IDLE (Waiting)</span>";
+
+  String html = "<!DOCTYPE html><html lang='en'><head>"
+                "<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+                "<title>InstaSight ESP32 - Server Config</title>"
+                "<style>"
+                "* { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }"
+                "body { background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }"
+                ".card { background: #1e293b; padding: 28px; border-radius: 20px; width: 100%; max-width: 480px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }"
+                "h1 { font-size: 20px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; }"
+                ".status-box { background: rgba(15, 23, 42, 0.6); border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; margin-bottom: 20px; font-size: 12px; color: #cbd5e1; line-height: 1.6; }"
+                ".status-row { display: flex; justify-content: space-between; align-items: center; margin: 3px 0; }"
+                "label { display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; margin-top: 14px; }"
+                "input { width: 100%; padding: 12px 14px; background: #0f172a; border: 1px solid #475569; border-radius: 10px; color: #fff; font-size: 14px; }"
+                "input:focus { outline: none; border-color: #38bdf8; ring: 2px solid #38bdf8; }"
+                ".row { display: flex; gap: 12px; }"
+                "button { margin-top: 22px; width: 100%; padding: 13px; background: linear-gradient(135deg, #0284c7, #2563eb); border: none; border-radius: 12px; color: white; font-weight: bold; font-size: 15px; cursor: pointer; transition: opacity 0.2s; }"
+                "button:hover { opacity: 0.9; }"
+                ".hint { font-size: 11px; color: #64748b; margin-top: 6px; }"
+                ".endpoints { margin-top: 18px; padding-top: 14px; border-top: 1px solid #334155; font-size: 11px; color: #94a3b8; word-break: break-all; }"
+                "</style></head><body>"
+                "<div class='card'>"
+                "<h1><span>🧠 InstaSight Target</span> " + statusBadge + "</h1>"
+                "<div class='status-box'>"
+                "<div class='status-row'><span>Wi-Fi Network:</span> <strong style='color:#38bdf8;'>" + wifi_ssid + "</strong></div>"
+                "<div class='status-row'><span>ESP32 IP:</span> <strong style='color:#4ade80;'>" + WiFi.localIP().toString() + "</strong></div>"
+                "<div class='status-row'><span>Signal Strength:</span> <span>" + String(WiFi.RSSI()) + " dBm</span></div>"
+                "<div class='status-row'><span>ADS1115 Sensor:</span> <span>" + (ads_available ? "✅ 250 SPS Active" : "⚠️ Disconnected") + "</span></div>"
+                "</div>"
+                "<form action='/update_server' method='POST'>"
+                "<label>Next.js Server Host / LAN IP</label>"
+                "<input type='text' name='server_host' value='" + server_host + "' placeholder='e.g. 192.168.1.100' required>"
+                "<div class='hint'>IP address of the computer running Next.js</div>"
+                "<div class='row'>"
+                "<div style='flex:1;'>"
+                "<label>Port</label>"
+                "<input type='number' name='server_port' value='" + String(server_port) + "' required>"
+                "</div>"
+                "<div style='flex:2;'>"
+                "<label>Device ID</label>"
+                "<input type='text' name='device_id' value='" + device_id + "' required>"
+                "</div>"
+                "</div>"
+                "<button type='submit'>Save Target URL</button>"
+                "</form>"
+                "<div class='endpoints'>"
+                "<strong>Active Target Endpoints:</strong><br>"
+                "&bull; Commands: <span style='color:#38bdf8;'>http://" + server_host + ":" + String(server_port) + "/api/device/commands?deviceId=" + device_id + "</span><br>"
+                "&bull; Telemetry: <span style='color:#38bdf8;'>http://" + server_host + ":" + String(server_port) + "/api/device/telemetry</span>"
+                "</div>"
+                "</div></body></html>";
+
+  return html;
+}
+
+void handleStationRoot() {
+  server.send(200, "text/html", getStationConfigPageHtml());
+}
+
+void handleUpdateServer() {
+  String host = server.arg("server_host");
+  int port = server.arg("server_port").toInt();
+  String dev = server.arg("device_id");
+
+  host.trim();
+  dev.trim();
+  if (port <= 0) port = 3000;
+  if (dev.length() == 0) dev = "esp32-demo-01";
+  if (host.length() == 0) host = "192.168.1.100";
+
+  saveServerPreferences(host, port, dev);
+
+  String response = "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>"
+                    "<meta http-equiv='refresh' content='2;url=/'>"
+                    "<style>body{background:#0f172a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-align:center;padding:50px;}"
+                    ".badge{background:#059669;color:#ecfdf5;padding:6px 14px;border-radius:20px;display:inline-block;font-weight:bold;margin-bottom:12px;}"
+                    "</style></head><body>"
+                    "<div class='badge'>✅ Target URL Updated!</div>"
+                    "<h2>Now listening to Next.js at:</h2>"
+                    "<p style='color:#38bdf8;font-size:18px;font-family:monospace;'>http://" + host + ":" + String(port) + "</p>"
+                    "<p style='color:#94a3b8;font-size:13px;'>Device ID: <strong>" + dev + "</strong></p>"
+                    "<p style='color:#64748b;font-size:12px;margin-top:20px;'>Redirecting back...</p>"
+                    "</body></html>";
+
+  server.send(200, "text/html", response);
+}
+
+// =========================================================================
+//  AP Captive Portal HTML Web Page
 // =========================================================================
 String getSetupPageHtml() {
   int n = WiFi.scanNetworks();
@@ -618,6 +727,22 @@ void startAccessPoint() {
     Serial.printf("ℹ️ Saved SSID:   '%s' (Check credentials or 2.4GHz range)\n", wifi_ssid.c_str());
   }
   Serial.println("Connect to Wi-Fi 'InstaSight-ESP32-Setup' on your phone/laptop to configure.");
+  Serial.println("==========================================================================\n");
+}
+
+void startStationWebServer() {
+  in_ap_mode = false;
+  server.on("/", handleStationRoot);
+  server.on("/update_server", HTTP_POST, handleUpdateServer);
+  server.onNotFound(handleStationRoot);
+  server.begin();
+
+  Serial.println("\n==========================================================================");
+  Serial.println("🌐 [Station Web Server] ONLINE & ACCESSIBLE");
+  Serial.printf("🔗 Configuration Page: http://%s/\n", WiFi.localIP().toString().c_str());
+  Serial.printf("🎯 Target Server:     http://%s:%d\n", server_host.c_str(), server_port);
+  Serial.printf("🆔 Device ID:         %s\n", device_id.c_str());
+  Serial.println("Open the IP above in your browser to change the target Next.js server URL.");
   Serial.println("==========================================================================\n");
 }
 
@@ -805,6 +930,9 @@ void setup() {
       Serial.printf(" - Next.js Target: http://%s:%d\n", server_host.c_str(), server_port);
       Serial.println("==========================================================================\n");
 
+      // Start Station Web Server on port 80 (http://<localIP>/) for changing target URL
+      startStationWebServer();
+
       // Test initial connection poll to Next.js API
       pollDeviceCommand();
     } else {
@@ -832,12 +960,14 @@ void loop() {
   // 1. Maintain Status LED according to Wi-Fi state
   updateStatusLED();
 
-  // 2. Handle AP Mode & Web Server if in Setup
+  // 2. Handle Web Server (works in both AP mode and Station mode)
   if (in_ap_mode) {
     dnsServer.processNextRequest();
-    server.handleClient();
-  } else {
-    // Check for start/stop commands periodically from Next.js
+  }
+  server.handleClient();
+
+  // 3. Command Polling in Station Mode
+  if (!in_ap_mode && WiFi.status() == WL_CONNECTED) {
     unsigned long now = millis();
     unsigned long pollInterval = is_streaming ? 3000 : 1000;
     if (now - lastCommandPollTime >= pollInterval) {
@@ -846,7 +976,7 @@ void loop() {
     }
   }
 
-  // 3. Check BOOT Button (Hold for 3s to reset settings & force AP mode)
+  // 4. Check BOOT Button (Hold for 3s to reset settings & force AP mode)
   if (digitalRead(BOOT_BUTTON_PIN) == LOW) {
     if (!buttonHeld) {
       buttonHeld = true;
@@ -861,7 +991,7 @@ void loop() {
     buttonHeld = false;
   }
 
-  // 4. Sample ADS1115 at 250 Hz (stream active only when commanded by Next.js)
+  // 5. Sample ADS1115 at 250 Hz (stream active only when commanded by Next.js)
   unsigned long currentMicros = micros();
   if (currentMicros - lastSampleTime >= SAMPLE_INTERVAL_US) {
     lastSampleTime = currentMicros;
