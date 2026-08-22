@@ -64,6 +64,7 @@ export type MovementEvidence = {
 
 export type AIFeedbackEvent = {
   id: string;
+  repetitionNumber?: number;
   sessionId: string;
   videoTimeMs: number;
   createdAt: string;
