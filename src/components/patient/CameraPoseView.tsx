@@ -6,6 +6,7 @@ import { DrawingUtils, PoseLandmarkerResult, PoseLandmarker } from "@mediapipe/t
 import { angle, Point } from "@/lib/pose/geometry";
 import { evaluateArmRaise } from "@/lib/pose/exerciseRules";
 import { PoseMetrics, AIFeedbackEvent } from "@/types/rehabilitation";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function CameraPoseView({ 
   isRecording, 
@@ -256,59 +257,76 @@ export function CameraPoseView({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="relative aspect-video w-full max-w-3xl overflow-hidden rounded-2xl bg-gray-900 border-4 border-gray-200 shadow-lg">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="relative flex-1 bg-black overflow-hidden group rounded-b-[2.5rem]">
         {!isLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center text-white">
-            <p className="text-xl animate-pulse">Loading Camera & AI Tracking...</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
+            <div className="w-8 h-8 border-4 border-figma-teal border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
         
-        <video ref={videoRef} className="absolute inset-0 h-full w-full" style={{ objectFit: "contain" }} playsInline muted />
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ objectFit: "contain" }} />
+        <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover opacity-80" playsInline muted />
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
         
         {/* REC badge */}
         {isRecording && (
-          <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg border-2 border-red-400 z-50">
-            <div className="w-4 h-4 bg-white rounded-full animate-pulse"></div>
-            <span className="font-bold tracking-wider">REC</span>
+          <div className="absolute top-6 right-8 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg border border-red-500 z-50">
+            <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
+            <span className="font-bold tracking-widest text-sm">REC</span>
           </div>
         )}
 
-        {/* Live AI Feedback overlay — bottom of camera, big and readable */}
-        {liveFeedback && (
-          <div className={`absolute bottom-0 left-0 right-0 z-50 px-6 py-4 text-center ${
-            liveFeedback.severity === "warning"
-              ? "bg-orange-500/90"
-              : liveFeedback.severity === "success"
-              ? "bg-green-600/90"
-              : "bg-blue-600/90"
-          }`}>
-            <p className="text-white text-xl font-bold drop-shadow">
-              {liveFeedback.severity === "warning" ? "⚠️" : liveFeedback.severity === "success" ? "✅" : "💬"}
-              {" "}{liveFeedback.suggestion}
-            </p>
-          </div>
-        )}
+        {/* Live AI Feedback overlay — fluid framer motion slide up */}
+        <AnimatePresence>
+          {liveFeedback && (
+            <motion.div 
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 25 }}
+              className="absolute bottom-6 left-6 right-6 z-50"
+            >
+              <div className={`px-6 py-5 rounded-2xl border backdrop-blur-xl shadow-2xl flex items-center gap-4 ${
+                liveFeedback.severity === "warning"
+                  ? "bg-figma-mustard/20 border-figma-mustard/40 text-figma-mustard"
+                  : liveFeedback.severity === "success"
+                  ? "bg-figma-teal/20 border-figma-teal/40 text-figma-teal"
+                  : "bg-figma-vibrant/20 border-figma-vibrant/40 text-white"
+              }`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl bg-black/40 backdrop-blur-md shrink-0`}>
+                  {liveFeedback.severity === "warning" ? "⚠️" : liveFeedback.severity === "success" ? "✅" : "💬"}
+                </div>
+                <p className="text-xl font-semibold leading-tight text-white drop-shadow-sm">
+                  {liveFeedback.suggestion}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="flex justify-between items-center absolute bottom-6 right-6 z-40">
+        <button 
+          onClick={simulateRepetition}
+          className="text-xs bg-black/40 backdrop-blur-md hover:bg-black/60 text-white font-bold px-4 py-2 rounded-xl shadow-sm border border-white/10 transition-colors"
+        >
+          🛠 Simulate Rep
+        </button>
       </div>
 
       {metrics && (
-        <div className="bg-white p-4 rounded-xl shadow border">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold text-lg">Live Telemetry</h3>
-            <button 
-              onClick={simulateRepetition}
-              className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-bold px-3 py-1.5 rounded shadow-sm border border-indigo-200 transition-colors"
-            >
-              🛠 Simulate Rep
-            </button>
+        <div className="absolute bottom-6 left-6 z-40 bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-2xl grid grid-cols-3 gap-6">
+          <div>
+            <p className="text-xs text-zinc-400 font-semibold mb-1">State</p>
+            <p className="font-mono text-white text-lg">{metrics.phase}</p>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div><strong>Phase:</strong> {metrics.phase}</div>
-            <div><strong>Reps:</strong> {metrics.repetition}</div>
-            <div><strong>Shoulder Angle:</strong> {Math.round(metrics.rightShoulderAngle)}°</div>
-            <div><strong>Elbow Angle:</strong> {Math.round(metrics.rightElbowAngle)}°</div>
-            <div><strong>Feedback:</strong> <span className="text-red-600">{metrics.error || "Good"}</span></div>
+          <div>
+            <p className="text-xs text-zinc-400 font-semibold mb-1">Shoulder</p>
+            <p className="font-mono text-white text-lg">{Math.round(metrics.rightShoulderAngle || 0)}°</p>
+          </div>
+          <div>
+            <p className="text-xs text-zinc-400 font-semibold mb-1">Reps</p>
+            <p className="font-mono text-white text-lg">{metrics.repetition}</p>
           </div>
         </div>
       )}

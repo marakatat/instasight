@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { clinicalBaselines } from "@/lib/ai/clinicalBaselines";
 import type { AIFeedbackEvent } from "@/types/rehabilitation";
+import { RateLimiter } from "@/lib/rate-limit";
+
+// Allow 5 AI requests per minute per IP for demo purposes
+const aiRateLimiter = new RateLimiter(60000, 5);
 
 const InputSchema = z.object({
   sessionId: z.string(),
@@ -23,6 +27,15 @@ const InputSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Rate Limiting Check
+    const ip = request.headers.get("x-forwarded-for") || "unknown-ip";
+    const limitStatus = aiRateLimiter.limit(ip);
+    
+    if (!limitStatus.success) {
+      console.warn(`Rate limit exceeded for IP: ${ip}`);
+      throw new Error("RATE_LIMIT_EXCEEDED");
+    }
+
     const body = await request.json();
     const input = InputSchema.parse(body);
 
@@ -162,8 +175,12 @@ Respond ONLY in pure JSON with no markdown:
 
     return NextResponse.json(aiEvent);
 
-  } catch (error) {
-    // On any failure (rate limit, parse error, etc) fall back to rule-based engine
+  } catch (error: any) {
+    if (error.message === "RATE_LIMIT_EXCEEDED") {
+      return NextResponse.json({ error: "Rate limit exceeded. Please wait." }, { status: 429 });
+    }
+
+    // On any failure (parse error, OpenRouter error, etc) fall back to rule-based engine
     console.error("Evaluation Error (falling back to rules):", error);
     const fallback: AIFeedbackEvent = {
       id: crypto.randomUUID(),
