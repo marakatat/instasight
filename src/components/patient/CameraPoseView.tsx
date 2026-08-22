@@ -48,6 +48,11 @@ export function CameraPoseView({
     rangeOfMotion: 0,
   });
 
+  const latestPropsRef = useRef({ eegTelemetry, onAIEvent, onAIPromise, shouldTriggerAI });
+  useEffect(() => {
+    latestPropsRef.current = { eegTelemetry, onAIEvent, onAIPromise, shouldTriggerAI };
+  }, [eegTelemetry, onAIEvent, onAIPromise, shouldTriggerAI]);
+
   useEffect(() => {
     if (!mediaRecorderRef.current) return;
     
@@ -66,6 +71,7 @@ export function CameraPoseView({
     let lastVideoTime = -1;
     let poseLandmarker: any;
     let localStream: MediaStream | null = null;
+    let isSubscribed = true;
 
     async function setupCameraAndMediaPipe() {
       poseLandmarker = await initializePoseLandmarker();
@@ -77,12 +83,19 @@ export function CameraPoseView({
           facingMode: "user" 
         },
       });
+      
+      if (!isSubscribed) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+      
       localStream = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         
         videoRef.current.onloadeddata = () => {
+          if (!isSubscribed) return;
           setIsLoaded(true);
           if (onLoaded) onLoaded();
           predictWebcam();
@@ -90,7 +103,11 @@ export function CameraPoseView({
           const recorder = new MediaRecorder(stream);
           
           recorder.start = function(timeslice) {
-             MediaRecorder.prototype.start.call(this, timeslice || 1000);
+             try {
+               MediaRecorder.prototype.start.call(this, timeslice || 1000);
+             } catch (e) {
+               console.error("Failed to start MediaRecorder:", e);
+             }
           };
 
           recorder.ondataavailable = (event) => {
@@ -178,6 +195,7 @@ export function CameraPoseView({
                   newMetrics.phase === "lowering") {
                   newMetrics.repetition += 1;
 
+                  const { shouldTriggerAI, eegTelemetry, onAIEvent, onAIPromise } = latestPropsRef.current;
                   if (!shouldTriggerAI || shouldTriggerAI()) {
                     const aiPromise = fetch("/api/ai/evaluate", {
                       method: "POST",
@@ -205,7 +223,7 @@ export function CameraPoseView({
                       if (aiEvent.error || !aiEvent.suggestion) return;
                       window.speechSynthesis.cancel();
                       window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
-                      onAIEvent(aiEvent as AIFeedbackEvent);
+                      if (onAIEvent) onAIEvent(aiEvent as AIFeedbackEvent);
                     })
                     .catch(err => console.error("AI Error:", err));
 
@@ -228,12 +246,13 @@ export function CameraPoseView({
     setupCameraAndMediaPipe();
 
     return () => {
+      isSubscribed = false;
       cancelAnimationFrame(animationFrameId);
       if (localStream) {
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [eegTelemetry, sessionId, onAIEvent, onAIPromise, shouldTriggerAI]);
+  }, [sessionId]); // Only restart camera if sessionId changes
 
   const simulateRepetition = () => {
     if (!isRecording) {

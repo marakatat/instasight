@@ -42,7 +42,53 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(videoPath);
     const videoUrl = urlData?.publicUrl;
 
-    // 2. Upsert session record
+    // 2. Generate AI Summaries from the events
+    let patientSummary = "Great job today! Keep up the good work.";
+    let doctorSummary = "Session complete. No significant deviations noted.";
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (apiKey && events.length > 0) {
+      const systemPrompt = `You are a clinical AI assistant analyzing a patient's physical therapy session.
+You are given a list of feedback events recorded during the session (each containing range of motion, motor intent scores, suggestions, and clinical notes).
+Generate TWO summaries:
+1. "patientSummary": A 1-2 sentence encouraging summary for the patient (simple, warm, non-medical).
+2. "doctorSummary": A dense, technical clinical note for the physical therapist summarizing the session's overall performance, average range of motion, fatigue indicators, and specific joint compensations if any.
+
+Respond ONLY in pure JSON format:
+{
+  "patientSummary": "...",
+  "doctorSummary": "..."
+}`;
+
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "dots-studio/dots-3-note-preview:free",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: JSON.stringify({ events }) }
+            ]
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = data.choices[0].message.content.trim();
+          const parsed = JSON.parse(content.replace(/^```json|```$/g, ''));
+          if (parsed.patientSummary) patientSummary = parsed.patientSummary;
+          if (parsed.doctorSummary) doctorSummary = parsed.doctorSummary;
+        }
+      } catch (err) {
+        console.error("AI Summarization failed, using fallbacks:", err);
+      }
+    }
+
+    // 3. Upsert session record with summaries
     const { error: sessionError } = await supabase
       .from("sessions")
       .upsert({
@@ -50,12 +96,14 @@ export async function POST(request: NextRequest) {
         patient_id: user?.id || null, // Link to patient if logged in
         video_url: videoUrl || null,
         exercise_id: "right_arm_raise",
+        patient_summary: patientSummary,
+        doctor_summary: doctorSummary,
         completed_at: new Date().toISOString(),
       });
 
     if (sessionError) console.error("Session upsert error:", sessionError);
 
-    // 3. Insert all AI events
+    // 4. Insert all AI events
     if (events.length > 0) {
       const rows = events.map((e: any) => ({
         id: e.id,
@@ -80,7 +128,7 @@ export async function POST(request: NextRequest) {
       if (eventsError) console.error("Events insert error:", eventsError);
     }
 
-    return NextResponse.json({ success: true, sessionId, videoUrl });
+    return NextResponse.json({ success: true, sessionId, videoUrl, patientSummary });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json({ error: "Failed to upload" }, { status: 500 });
