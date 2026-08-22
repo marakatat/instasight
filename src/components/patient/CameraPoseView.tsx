@@ -6,6 +6,7 @@ import { DrawingUtils, PoseLandmarkerResult, PoseLandmarker } from "@mediapipe/t
 import { angle, Point } from "@/lib/pose/geometry";
 import { evaluateArmRaise } from "@/lib/pose/exerciseRules";
 import { PoseMetrics, AIFeedbackEvent } from "@/types/rehabilitation";
+import { EegTelemetry } from "@/lib/eeg/useEegStream";
 
 export function CameraPoseView({ 
   isRecording, 
@@ -14,7 +15,9 @@ export function CameraPoseView({
   onAIPromise,
   shouldTriggerAI,
   onLoaded,
-  liveFeedback
+  liveFeedback,
+  eegTelemetry,
+  sessionId = "session_demo",
 }: {
   isRecording: boolean;
   onRecordingComplete: (blob: Blob) => void;
@@ -23,6 +26,8 @@ export function CameraPoseView({
   shouldTriggerAI?: () => boolean;
   onLoaded?: () => void;
   liveFeedback?: { suggestion: string; severity: string } | null;
+  eegTelemetry?: EegTelemetry | null;
+  sessionId?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -168,7 +173,7 @@ export function CameraPoseView({
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      sessionId: "session_demo",
+                      sessionId: sessionId,
                       videoTimeMs: Math.round(video.currentTime * 1000),
                       repetitionNumber: newMetrics.repetition,
                       exerciseId: "right_arm_raise",
@@ -179,7 +184,10 @@ export function CameraPoseView({
                         rangeOfMotion: newMetrics.rangeOfMotion,
                         poseConfidence: 0.95
                       },
-                      eeg: { signalQuality: 0.88, motorIntentScore: 0.73 }
+                      eeg: {
+                        signalQuality: eegTelemetry?.signalQuality ?? 0.9,
+                        motorIntentScore: eegTelemetry?.motorAttemptProbability ?? 0.75
+                      }
                     })
                   })
                   .then(res => res.json())
@@ -211,7 +219,7 @@ export function CameraPoseView({
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [eegTelemetry, sessionId, onAIEvent, onAIPromise, shouldTriggerAI]);
 
   const simulateRepetition = () => {
     if (!isRecording) {
@@ -230,7 +238,7 @@ export function CameraPoseView({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: "session_demo_sim",
+        sessionId: sessionId || "session_demo_sim",
         videoTimeMs: 2500, 
         repetitionNumber: newRep,
         exerciseId: "right_arm_raise",
@@ -241,7 +249,10 @@ export function CameraPoseView({
           rangeOfMotion: 62,
           poseConfidence: 0.99
         },
-        eeg: { signalQuality: 0.9, motorIntentScore: 0.8 }
+        eeg: {
+          signalQuality: eegTelemetry?.signalQuality ?? 0.9,
+          motorIntentScore: eegTelemetry?.motorAttemptProbability ?? 0.8
+        }
       })
     })
     .then(res => res.json())
@@ -306,8 +317,8 @@ export function CameraPoseView({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div><strong>Phase:</strong> {metrics.phase}</div>
             <div><strong>Reps:</strong> {metrics.repetition}</div>
-            <div><strong>Shoulder Angle:</strong> {Math.round(metrics.rightShoulderAngle)}°</div>
-            <div><strong>Elbow Angle:</strong> {Math.round(metrics.rightElbowAngle)}°</div>
+            <div><strong>Shoulder Angle:</strong> {Math.round(metrics.rightShoulderAngle ?? 0)}°</div>
+            <div><strong>Elbow Angle:</strong> {Math.round(metrics.rightElbowAngle ?? 0)}°</div>
             <div><strong>Feedback:</strong> <span className="text-red-600">{metrics.error || "Good"}</span></div>
           </div>
         </div>
