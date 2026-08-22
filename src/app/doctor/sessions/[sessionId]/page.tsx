@@ -61,7 +61,11 @@ export default async function DoctorSessionPage({
         </header>
 
         {events.length > 0 || videoUrl ? (
-          <SessionVideoReview events={events} videoUrl={videoUrl} />
+          <SessionVideoReview 
+            events={events} 
+            videoUrl={videoUrl} 
+            doctorSummary={session?.doctor_summary}
+          />
         ) : (
           <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200/50 text-center shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)]">
             <h2 className="text-2xl font-bold text-zinc-900 tracking-tight">No session data found.</h2>

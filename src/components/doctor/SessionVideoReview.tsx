@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import type { AIFeedbackEvent } from "@/types/rehabilitation";
 
-export function SessionVideoReview({ events, videoUrl }: { events: AIFeedbackEvent[]; videoUrl?: string | null }) {
+export function SessionVideoReview({ events, videoUrl, doctorSummary }: { events: AIFeedbackEvent[]; videoUrl?: string | null; doctorSummary?: string | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<AIFeedbackEvent | null>(null);
 
@@ -26,6 +26,21 @@ export function SessionVideoReview({ events, videoUrl }: { events: AIFeedbackEve
     <div className="grid lg:grid-cols-[1fr_400px] gap-8">
       {/* Video Player & Analytics */}
       <div className="space-y-6">
+        
+        {/* Clinical AI Summary */}
+        {doctorSummary && (
+          <div className="bg-figma-teal/5 border border-figma-teal/20 p-8 rounded-[2.5rem] shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-figma-teal/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+            <div className="flex items-center gap-3 mb-4 relative z-10">
+              <span className="text-2xl">🧠</span>
+              <h3 className="text-xl font-bold text-figma-teal tracking-tight">Clinical AI Summary</h3>
+            </div>
+            <p className="text-zinc-800 font-medium leading-relaxed relative z-10">
+              {doctorSummary}
+            </p>
+          </div>
+        )}
+
         <div className="relative aspect-video bg-black rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 group">
            {/* Video from Supabase Storage */}
           <video

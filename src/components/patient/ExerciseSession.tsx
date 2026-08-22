@@ -13,6 +13,7 @@ export function ExerciseSession() {
   const [sessionState, setSessionState] = useState<SessionState>('setup');
   const [uploadStatus, setUploadStatus] = useState("Saving session...");
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
+  const [patientSummary, setPatientSummary] = useState<string | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [liveFeedback, setLiveFeedback] = useState<{ suggestion: string; severity: string } | null>(null);
   const [currentMetrics, setCurrentMetrics] = useState<PoseMetrics | null>(null);
@@ -70,6 +71,7 @@ export function ExerciseSession() {
         const result = await res.json();
         const sid = result.sessionId || sessionIdRef.current;
         setSessionUrl(`/doctor/sessions/${sid}`);
+        if (result.patientSummary) setPatientSummary(result.patientSummary);
         setSessionState('complete');
       } else {
         setUploadStatus("❌ Failed to upload session.");
@@ -186,9 +188,15 @@ export function ExerciseSession() {
                 <CheckCircle size={48} weight="fill" className="text-figma-teal" />
               </div>
               <h2 className="text-4xl font-bold mb-4 text-white">Session Complete</h2>
-              <p className="text-lg text-zinc-400 font-medium leading-relaxed mb-10">
+              <p className="text-lg text-zinc-400 font-medium leading-relaxed mb-6">
                 Session saved. Your doctor will review the results.
               </p>
+              
+              {patientSummary && (
+                <div className="bg-white/10 p-6 rounded-3xl mb-8 border border-white/20 w-full shadow-inner">
+                  <p className="text-white text-lg font-medium leading-relaxed">"{patientSummary}"</p>
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-4 w-full mb-10">
                 <div className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center justify-center">
