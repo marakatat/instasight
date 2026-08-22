@@ -1,18 +1,22 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { VoiceControls } from "./VoiceControls";
 import { CameraPoseView } from "./CameraPoseView";
+import type { AIFeedbackEvent, PoseMetrics } from "@/types/rehabilitation";
+import { CheckCircle, Heartbeat, VideoCamera, ShieldCheck, PlayCircle, StopCircle, ArrowRight, Waveform, Brain } from "@phosphor-icons/react/dist/ssr";
+import { speak } from "@/lib/voice/speak";
 import { useEegStream } from "@/lib/eeg/useEegStream";
-import type { AIFeedbackEvent } from "@/types/rehabilitation";
+
+type SessionState = 'setup' | 'active' | 'processing' | 'complete';
 
 export function ExerciseSession() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState("");
+  const [sessionState, setSessionState] = useState<SessionState>('setup');
+  const [uploadStatus, setUploadStatus] = useState("Saving session...");
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [liveFeedback, setLiveFeedback] = useState<{ suggestion: string; severity: string } | null>(null);
+  const [currentMetrics, setCurrentMetrics] = useState<PoseMetrics | null>(null);
+
   const liveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiEventsRef = useRef<AIFeedbackEvent[]>([]);
   const pendingAICallsRef = useRef<Promise<void>[]>([]);
@@ -33,29 +37,24 @@ export function ExerciseSession() {
     const newSessionId = `session_${Date.now()}`;
     sessionIdRef.current = newSessionId;
     setSessionUrl(null);
-    setIsRecording(true);
-
-    // Command the ESP32 to start streaming raw EEG telemetry
+    setSessionState('active');
+    
     startStream(newSessionId);
+    speak("Starting the exercise. Move slowly.");
   };
 
   const handleStop = () => {
-    setIsRecording(false);
-    // Command the ESP32 to stop streaming
+    setSessionState('processing');
+    setUploadStatus("Processing video and saving results...");
     stopStream();
-
-    // Don't upload yet — wait for CameraPoseView's recorder.onstop to fire
-    // which calls handleRecordingComplete with the blob
-    setIsUploading(true);
-    setUploadStatus("Waiting for AI analysis to finish...");
+    speak("Exercise stopped. Saving results.");
   };
 
   const handleRecordingComplete = async (blob: Blob) => {
-    // Wait for ALL pending AI calls to resolve before uploading
-    setUploadStatus(`Waiting for ${pendingAICallsRef.current.length} AI notes to finish...`);
+    setUploadStatus(`Saving ${pendingAICallsRef.current.length} feedback notes...`);
     await Promise.allSettled(pendingAICallsRef.current);
 
-    setUploadStatus("Uploading session to Doctor Dashboard...");
+    setUploadStatus("Uploading session to dashboard...");
 
     const formData = new FormData();
     formData.append("video", blob, "recording.webm");
@@ -70,175 +69,210 @@ export function ExerciseSession() {
       if (res.ok) {
         const result = await res.json();
         const sid = result.sessionId || sessionIdRef.current;
-        setUploadStatus(`✅ Session uploaded! ${aiEventsRef.current.length} AI keynotes saved.`);
         setSessionUrl(`/doctor/sessions/${sid}`);
+        setSessionState('complete');
       } else {
         setUploadStatus("❌ Failed to upload session.");
       }
     } catch (e) {
       console.error(e);
       setUploadStatus("❌ Error uploading session.");
-    } finally {
-      setTimeout(() => setIsUploading(false), 3000);
     }
   };
 
   const handleAIEvent = useCallback((event: AIFeedbackEvent) => {
     aiEventsRef.current.push(event);
-    // Show live feedback banner to the patient!
     setLiveFeedback({ suggestion: event.suggestion, severity: event.severity });
-    // Auto-dismiss after 8 seconds
     if (liveFeedbackTimerRef.current) clearTimeout(liveFeedbackTimerRef.current);
     liveFeedbackTimerRef.current = setTimeout(() => setLiveFeedback(null), 8000);
   }, []);
 
-  // Called from CameraPoseView when a rep is detected — we track the promise here
   const handleAIPromise = useCallback((promise: Promise<void>) => {
     pendingAICallsRef.current.push(promise);
   }, []);
 
-  // Only call AI on notable reps (every 5th rep, or always pass through - parent decides via shouldTriggerAI)
   const shouldTriggerAI = useCallback(() => {
     aiCallCountRef.current += 1;
     return aiCallCountRef.current <= AI_CALL_LIMIT;
   }, []);
 
-  const motorIntentPct = Math.round((telemetry?.motorAttemptProbability ?? 0.5) * 100);
-  const signalQualityPct = Math.round((telemetry?.signalQuality ?? 0.9) * 100);
+  const motorIntentPct = Math.round((telemetry?.motorAttemptProbability ?? 0) * 100);
 
   return (
-    <div className="min-h-[100dvh] bg-black p-4 md:p-8 selection:bg-teal-500 selection:text-white">
-      <div className="max-w-[1600px] mx-auto grid gap-6 lg:grid-cols-[1fr_380px]">
-        {/* Main Camera Area */}
-        <div className="flex flex-col h-full bg-zinc-950 rounded-[2.5rem] border border-white/10 overflow-hidden relative shadow-2xl">
-          <div className="absolute top-6 left-8 z-10">
-            <h1 className="text-2xl font-bold text-white tracking-tight">Right Arm Raise</h1>
-            <p className="text-zinc-400 font-medium text-sm mt-1">Please sit upright and follow the voice instructions.</p>
+    <div className="min-h-[100dvh] bg-black text-white selection:bg-figma-teal overflow-hidden flex flex-col font-sans relative">
+      
+      {/* Immersive Camera Layer */}
+      <div className={`absolute inset-0 transition-all duration-1000 ${sessionState !== 'active' ? 'opacity-40 blur-2xl scale-105' : 'opacity-100 scale-100'}`}>
+        <CameraPoseView 
+          isRecording={sessionState === 'active'} 
+          onRecordingComplete={handleRecordingComplete}
+          onAIEvent={handleAIEvent}
+          onAIPromise={handleAIPromise}
+          shouldTriggerAI={shouldTriggerAI}
+          onLoaded={() => setIsCameraReady(true)}
+          liveFeedback={liveFeedback}
+          onMetricsUpdate={setCurrentMetrics}
+          eegTelemetry={telemetry}
+          sessionId={sessionIdRef.current}
+        />
+      </div>
+
+      {/* Bento Grid HUD Overlay */}
+      <div className="absolute inset-0 z-10 w-full h-full p-6 lg:p-10 flex flex-col justify-between pointer-events-none">
+        
+        {/* TOP ROW */}
+        <div className="flex justify-between items-start w-full">
+          {/* Top Left: Header Bento */}
+          <div className="bg-black/40 backdrop-blur-3xl border border-white/10 rounded-3xl p-5 flex items-center gap-5 shadow-2xl pointer-events-auto transition-transform">
+             <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20">
+               <Heartbeat size={24} weight="duotone" className="text-white" />
+             </div>
+             <div>
+               <h1 className="text-xl font-bold tracking-tight text-white m-0 leading-none">Right Arm Raise</h1>
+               <div className="flex items-center gap-3 mt-2">
+                 <div className="flex items-center gap-1.5">
+                   <div className={`w-2 h-2 rounded-full ${isCameraReady ? 'bg-figma-teal shadow-[0_0_10px_rgba(42,157,143,0.8)]' : 'bg-figma-mustard animate-pulse'}`} />
+                   <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest m-0 leading-none">
+                     {isCameraReady ? "Camera" : "Initializing"}
+                   </p>
+                 </div>
+                 <div className="w-px h-3 bg-white/20" />
+                 <div className="flex items-center gap-1.5">
+                   <div className={`w-2 h-2 rounded-full ${isHardwareOnline ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]' : 'bg-indigo-400 animate-pulse'}`} />
+                   <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest m-0 leading-none">
+                     {isHardwareOnline ? "ESP32 Linked" : "Simulation"}
+                   </p>
+                 </div>
+               </div>
+             </div>
           </div>
+        </div>
 
-          <CameraPoseView
-            isRecording={isRecording}
-            onRecordingComplete={handleRecordingComplete}
-            onAIEvent={handleAIEvent}
-            onAIPromise={handleAIPromise}
-            shouldTriggerAI={shouldTriggerAI}
-            onLoaded={() => setIsCameraReady(true)}
-            liveFeedback={liveFeedback}
-            eegTelemetry={telemetry}
-            sessionId={sessionIdRef.current}
-          />
-
-          {isUploading && (
-            <div className="m-4 p-4 bg-blue-950/80 text-blue-300 rounded-2xl font-bold text-center border border-blue-500/40 animate-pulse backdrop-blur-md">
-              {uploadStatus}
+        {/* CENTER OVERLAYS */}
+        <div className="flex-1 flex flex-col items-center justify-center w-full">
+          {/* Setup State */}
+          {sessionState === 'setup' && isCameraReady && (
+            <div className="bg-black/40 backdrop-blur-3xl p-10 rounded-[3rem] border border-white/10 shadow-2xl text-center max-w-lg pointer-events-auto animate-in fade-in zoom-in duration-500">
+              <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/20">
+                <VideoCamera size={40} weight="duotone" className="text-white" />
+              </div>
+              <h2 className="text-3xl font-bold mb-4 text-white">Camera Setup</h2>
+              <p className="text-zinc-400 font-medium leading-relaxed mb-8">
+                Please sit upright and ensure your upper body is fully visible in the frame. The camera will track your form.
+              </p>
+              <button 
+                onClick={handleStart}
+                className="w-full py-5 bg-white text-black font-bold text-lg rounded-2xl hover:bg-zinc-200 transition-transform active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2"
+              >
+                <PlayCircle size={28} weight="fill" />
+                Start Workout
+              </button>
             </div>
           )}
 
-          {sessionUrl && !isUploading && (
-            <a
-              href={sessionUrl}
-              target="_blank"
-              className="block m-4 p-4 bg-teal-600 text-white rounded-2xl font-bold text-center text-lg hover:bg-teal-500 transition-colors shadow-lg"
-            >
-              🩺 Open Doctor Dashboard →
-            </a>
+          {/* Processing State */}
+          {sessionState === 'processing' && (
+            <div className="bg-black/40 backdrop-blur-3xl p-10 rounded-[3rem] border border-white/10 shadow-2xl text-center max-w-lg w-full pointer-events-auto animate-in fade-in zoom-in duration-500">
+              <div className="w-16 h-16 border-4 border-figma-teal border-t-transparent rounded-full animate-spin mx-auto mb-8" />
+              <h2 className="text-2xl font-bold mb-2 text-white">Analyzing Session</h2>
+              <p className="text-zinc-400 font-medium">{uploadStatus}</p>
+            </div>
+          )}
+
+          {/* Complete State */}
+          {sessionState === 'complete' && sessionUrl && (
+            <div className="bg-black/40 backdrop-blur-3xl p-12 rounded-[3rem] border border-white/10 shadow-2xl text-center max-w-xl w-full flex flex-col items-center pointer-events-auto animate-in fade-in zoom-in duration-500">
+              <div className="w-24 h-24 bg-figma-teal/20 rounded-[2.5rem] flex items-center justify-center mb-8 border border-figma-teal/30">
+                <CheckCircle size={48} weight="fill" className="text-figma-teal" />
+              </div>
+              <h2 className="text-4xl font-bold mb-4 text-white">Session Complete</h2>
+              <p className="text-lg text-zinc-400 font-medium leading-relaxed mb-10">
+                Session saved. Your doctor will review the results.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4 w-full mb-10">
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center justify-center">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Reps Completed</p>
+                  <p className="text-4xl font-bold text-white">{currentMetrics?.repetition || aiEventsRef.current.length || 0}</p>
+                </div>
+                <div className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center justify-center">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Feedback Notes</p>
+                  <p className="text-4xl font-bold text-figma-teal">{aiEventsRef.current.length}</p>
+                </div>
+              </div>
+
+              <a
+                href={sessionUrl}
+                target="_blank"
+                className="w-full py-5 bg-figma-teal text-white font-bold text-lg rounded-2xl hover:bg-teal-500 transition-transform active:scale-95 shadow-[0_0_30px_rgba(42,157,143,0.3)] flex items-center justify-center gap-2"
+              >
+                View Session Details <ArrowRight size={24} weight="bold" />
+              </a>
+            </div>
           )}
         </div>
 
-        {/* Sidebar Controls & Real-time EEG Biofeedback */}
-        <div className="flex flex-col gap-6 h-full">
-          <div className="bg-zinc-950 p-6 rounded-[2.5rem] border border-white/10 flex flex-col gap-6 relative overflow-hidden shadow-2xl">
-            <h2 className="text-xl font-semibold text-white">Session Controls</h2>
-
-            <div>
-              <VoiceControls
-                isRecording={isRecording}
-                isCameraReady={isCameraReady}
-                onStart={handleStart}
-                onStop={handleStop}
-              />
-            </div>
-
-            {/* Real-time EEG Telemetry HUD */}
-            <div className="bg-black/60 backdrop-blur-xl p-4 rounded-2xl border border-white/10 flex flex-col gap-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🧠</span>
-                  <h3 className="font-bold text-sm text-zinc-100">EEG Biofeedback</h3>
+        {/* BOTTOM ROW */}
+        <div className="flex justify-between items-end w-full gap-6">
+          {sessionState === 'active' ? (
+            <>
+              {/* Bottom Left: Telemetry Bento */}
+              <div className="bg-black/40 backdrop-blur-3xl p-6 rounded-[2rem] border border-white/10 shadow-2xl flex gap-8 pointer-events-auto animate-in slide-in-from-bottom-10 duration-500">
+                <div className="flex flex-col min-w-[80px]">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <Heartbeat size={14} /> Phase
+                  </span>
+                  <span className="text-2xl font-bold capitalize text-white">{currentMetrics?.phase || 'Idle'}</span>
                 </div>
-                <span
-                  className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold border ${
-                    isHardwareOnline
-                      ? "bg-emerald-950 text-emerald-300 border-emerald-500/40"
-                      : "bg-indigo-950 text-indigo-300 border-indigo-500/40"
-                  }`}
-                >
-                  {isHardwareOnline ? "● ESP32 Hardware" : "● Simulation Mode"}
-                </span>
-              </div>
-
-              {/* Motor Attempt Gauge */}
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                <div className="flex justify-between items-center text-xs mb-1.5">
-                  <span className="text-zinc-300 font-medium">Motor Intent Attempt</span>
-                  <span
-                    className={`font-bold font-mono text-sm ${
-                      motorIntentPct >= 65 ? "text-teal-400" : "text-amber-400"
-                    }`}
-                  >
+                <div className="w-px bg-white/10" />
+                <div className="flex flex-col min-w-[80px]">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <ShieldCheck size={14} /> ROM
+                  </span>
+                  <span className="text-2xl font-bold text-figma-teal">{Math.round(currentMetrics?.rangeOfMotion || 0)}°</span>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div className="flex flex-col min-w-[80px]">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <Heartbeat size={14} /> Reps
+                  </span>
+                  <span className="text-2xl font-bold text-white">{currentMetrics?.repetition || 0}</span>
+                </div>
+                <div className="w-px bg-white/10" />
+                {/* EEG Integration */}
+                <div className="flex flex-col min-w-[80px]">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    <Brain size={14} /> Intent
+                  </span>
+                  <span className={`text-2xl font-bold ${motorIntentPct >= 65 ? "text-teal-400" : "text-amber-400"}`}>
                     {motorIntentPct}%
                   </span>
                 </div>
-                <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-300 ${
-                      motorIntentPct >= 65
-                        ? "bg-gradient-to-r from-teal-400 to-emerald-500"
-                        : "bg-gradient-to-r from-sky-400 to-amber-400"
-                    }`}
-                    style={{ width: `${motorIntentPct}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
-                  <span>Mu ERD: {telemetry?.erdPercentage ?? 0}%</span>
-                  <span>{telemetry?.isAttemptDetected ? "⚡ Intent Active" : "Resting"}</span>
-                </div>
               </div>
 
-              {/* Signal Quality */}
-              <div className="flex items-center justify-between text-xs bg-white/5 p-2.5 rounded-xl border border-white/5">
-                <span className="text-zinc-300">Signal Quality:</span>
-                <span className="font-mono text-teal-400 font-bold">{signalQualityPct}%</span>
+              {/* Bottom Right: Controls Bento */}
+              <div className="bg-black/40 backdrop-blur-3xl p-4 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-10 duration-500">
+                <button 
+                  onClick={() => speak("Lift your arm slowly until it is comfortable.")}
+                  className="w-14 h-14 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-colors text-white"
+                  title="Repeat Instruction"
+                >
+                  <Waveform size={24} weight="duotone" />
+                </button>
+                <button 
+                  onClick={handleStop}
+                  className="px-8 h-14 bg-white text-black font-bold rounded-2xl hover:bg-zinc-200 transition-transform active:scale-95 flex items-center gap-2 text-lg shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                >
+                  <StopCircle size={24} weight="fill" />
+                  Finish
+                </button>
               </div>
-
-              {/* Mini Real-time Waveform Preview */}
-              {telemetry?.filteredPreview && telemetry.filteredPreview.length > 0 && (
-                <div>
-                  <div className="text-[10px] text-zinc-400 mb-1 font-medium">Live Waveform (uV):</div>
-                  <div className="h-9 bg-black/80 rounded-lg p-1 flex items-center gap-0.5 border border-white/5 overflow-hidden">
-                    {telemetry.filteredPreview.map((val, idx) => {
-                      const height = Math.min(100, Math.max(12, 50 + val * 1.5));
-                      return (
-                        <div
-                          key={idx}
-                          className="flex-1 bg-teal-400/80 rounded-xs transition-all duration-150"
-                          style={{ height: `${height}%` }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+            </>
+          ) : (
+            <div className="w-full flex justify-end">
+              {/* Optional footer elements for non-active states */}
             </div>
-
-            {/* Doctor's Prescription Note */}
-            <div className="mt-auto pt-4 border-t border-white/10">
-              <h3 className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Doctor's Note</h3>
-              <p className="text-sm text-zinc-300 font-medium leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/5">
-                "Remember to lift slowly and keep your elbow as straight as comfortable. Do 5 repetitions."
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

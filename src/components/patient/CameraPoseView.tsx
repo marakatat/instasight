@@ -19,6 +19,7 @@ export function CameraPoseView({
   liveFeedback,
   eegTelemetry,
   sessionId = "session_demo",
+  onMetricsUpdate
 }: {
   isRecording: boolean;
   onRecordingComplete: (blob: Blob) => void;
@@ -29,6 +30,7 @@ export function CameraPoseView({
   liveFeedback?: { suggestion: string; severity: string } | null;
   eegTelemetry?: EegTelemetry | null;
   sessionId?: string;
+  onMetricsUpdate?: (metrics: PoseMetrics) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,7 +48,6 @@ export function CameraPoseView({
     rangeOfMotion: 0,
   });
 
-  // Handle Start/Stop commands from parent VoiceControls safely
   useEffect(() => {
     if (!mediaRecorderRef.current) return;
     
@@ -88,7 +89,6 @@ export function CameraPoseView({
           
           const recorder = new MediaRecorder(stream);
           
-          // Request data every 1 second to ensure chunks are actually collected
           recorder.start = function(timeslice) {
              MediaRecorder.prototype.start.call(this, timeslice || 1000);
           };
@@ -173,13 +173,11 @@ export function CameraPoseView({
                 repetition: metricsRef.current.repetition,
               });
 
-              // Trigger AI when the patient completes a raise and starts lowering their arm
               if (mediaRecorderRef.current?.state === "recording" && 
                   metricsRef.current.phase === "holding" && 
                   newMetrics.phase === "lowering") {
                   newMetrics.repetition += 1;
 
-                  // Call AI but cap at 5 per session so upload doesn't hang
                   if (!shouldTriggerAI || shouldTriggerAI()) {
                     const aiPromise = fetch("/api/ai/evaluate", {
                       method: "POST",
@@ -216,6 +214,7 @@ export function CameraPoseView({
               }
               metricsRef.current = newMetrics;
               setMetrics(newMetrics);
+              if (onMetricsUpdate) onMetricsUpdate(newMetrics);
             }
           }
           ctx.restore();
@@ -247,6 +246,7 @@ export function CameraPoseView({
     setMetrics(prev => prev ? { ...prev, repetition: newRep, phase: "lowering" } : null);
     metricsRef.current.repetition = newRep;
     metricsRef.current.phase = "lowering";
+    if (onMetricsUpdate) onMetricsUpdate(metricsRef.current);
 
     fetch("/api/ai/evaluate", {
       method: "POST",
@@ -292,7 +292,6 @@ export function CameraPoseView({
         <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover opacity-80" playsInline muted />
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
         
-        {/* REC badge */}
         {isRecording && (
           <div className="absolute top-6 right-8 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg border border-red-500 z-50">
             <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
@@ -300,29 +299,41 @@ export function CameraPoseView({
           </div>
         )}
 
-        {/* Live AI Feedback overlay — fluid framer motion slide up */}
         <AnimatePresence>
           {liveFeedback && (
             <motion.div 
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 25 }}
-              className="absolute bottom-6 left-6 right-6 z-50"
+              initial={{ y: -20, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -20, opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="absolute top-6 left-1/2 -translate-x-1/2 z-50 min-w-[400px]"
             >
-              <div className={`px-6 py-5 rounded-2xl border backdrop-blur-xl shadow-2xl flex items-center gap-4 ${
+              <div className={`px-6 py-4 rounded-3xl border backdrop-blur-2xl shadow-2xl flex items-center gap-5 ${
                 liveFeedback.severity === "warning"
-                  ? "bg-amber-500/20 border-amber-500/40 text-amber-200"
+                  ? "bg-figma-mustard/10 border-figma-mustard/30"
                   : liveFeedback.severity === "success"
-                  ? "bg-teal-500/20 border-teal-500/40 text-teal-200"
-                  : "bg-blue-500/20 border-blue-500/40 text-white"
+                  ? "bg-figma-teal/10 border-figma-teal/30"
+                  : "bg-white/10 border-white/20"
               }`}>
-                <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl bg-black/40 backdrop-blur-md shrink-0">
-                  {liveFeedback.severity === "warning" ? "⚠️" : liveFeedback.severity === "success" ? "✅" : "💬"}
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 ${
+                  liveFeedback.severity === "warning" ? "bg-figma-mustard/20 text-figma-mustard" : 
+                  liveFeedback.severity === "success" ? "bg-figma-teal/20 text-figma-teal" : 
+                  "bg-white/20 text-white"
+                }`}>
+                  {liveFeedback.severity === "warning" ? "⚠️" : liveFeedback.severity === "success" ? "✅" : "💡"}
                 </div>
-                <p className="text-xl font-semibold leading-tight text-white drop-shadow-sm">
-                  {liveFeedback.suggestion}
-                </p>
+                <div className="flex flex-col">
+                  <span className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+                    liveFeedback.severity === "warning" ? "text-figma-mustard" : 
+                    liveFeedback.severity === "success" ? "text-figma-teal" : 
+                    "text-zinc-300"
+                  }`}>
+                    Clinical AI Feedback
+                  </span>
+                  <p className="text-lg font-medium leading-tight text-white drop-shadow-sm">
+                    {liveFeedback.suggestion}
+                  </p>
+                </div>
               </div>
             </motion.div>
           )}
@@ -337,27 +348,6 @@ export function CameraPoseView({
           🛠 Simulate Rep
         </button>
       </div>
-
-      {metrics && (
-        <div className="absolute bottom-6 left-6 z-40 bg-black/60 backdrop-blur-xl border border-white/10 p-4 rounded-2xl grid grid-cols-4 gap-4 text-white">
-          <div>
-            <p className="text-xs text-zinc-400 font-semibold mb-1">State</p>
-            <p className="font-mono text-white text-base capitalize">{metrics.phase}</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 font-semibold mb-1">Shoulder</p>
-            <p className="font-mono text-white text-base">{Math.round(metrics.rightShoulderAngle || 0)}°</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 font-semibold mb-1">Elbow</p>
-            <p className="font-mono text-white text-base">{Math.round(metrics.rightElbowAngle || 0)}°</p>
-          </div>
-          <div>
-            <p className="text-xs text-zinc-400 font-semibold mb-1">Reps</p>
-            <p className="font-mono text-teal-400 text-base font-bold">{metrics.repetition}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
