@@ -22,7 +22,7 @@
 #define LED_PIN 2
 
 // ---------- AP Configuration ----------
-const char* AP_SSID = "InstaSight-ESP32-Setup";
+const char* AP_SSID = "InstaSight EEG Setup";
 const char* AP_PASS = ""; // Open AP
 const IPAddress AP_IP(192, 168, 4, 1);
 const IPAddress AP_NETMASK(255, 255, 255, 0);
