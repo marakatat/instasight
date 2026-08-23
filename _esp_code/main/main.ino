@@ -3,22 +3,18 @@
 #include <DNSServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
-#include <Wire.h>
-#include <Adafruit_ADS1X15.h>
 
 // =========================================================================
-//  InstaSight - ESP32 EEG Server & Web Wi-Fi Configuration
+//  InstaSight - ESP32 EEG Server & Web Wi-Fi Configuration (Simulated EEG)
 // =========================================================================
 //  Architecture:
 //  - Starts in Station mode if credentials exist in NVS.
-//  - If no credentials or connection fails, starts AP ("InstaSight-ESP32-Setup" at 192.168.4.1).
+//  - If no credentials or connection fails, starts AP ("InstaSight EEG Setup" at 192.168.4.1).
 //  - Web portal on port 80 handles both AP setup and live Station status.
-//  - Protected against FreeRTOS stack overflow, WDT resets, and route re-entry.
+//  - Generates realistic synthetic multi-band EEG stream over REST API.
 // =========================================================================
 
 // ---------- Hardware Pins ----------
-#define I2C_SDA_PIN 21
-#define I2C_SCL_PIN 22
 #define LED_PIN 2
 
 // ---------- AP Configuration ----------
@@ -44,7 +40,6 @@ uint16_t eegCount = 0;
 Preferences prefs;
 WebServer server(80);
 DNSServer dnsServer;
-Adafruit_ADS1115 ads;
 
 String wifiSsid = "";
 String wifiPassword = "";
@@ -55,7 +50,6 @@ String sessionId = "";
 uint32_t sequence = 0;
 uint32_t droppedSamples = 0;
 uint32_t nextSampleTime = 0;
-bool adsAvailable = false;
 bool routesConfigured = false;
 bool serverRunning = false;
 
@@ -130,7 +124,7 @@ void clearCredentials() {
 }
 
 // =========================================================================
-//  Helpers
+//  Helpers & Synthetic EEG Generator
 // =========================================================================
 void sendJsonResponse(int statusCode, const String& jsonStr) {
   server.send(statusCode, "application/json", jsonStr);
@@ -157,18 +151,17 @@ void clearBuffer() {
   droppedSamples = 0;
 }
 
+// Realistic Synthetic Multi-frequency EEG Signal (Alpha 10Hz, Beta 20Hz, Theta 6Hz + Noise)
 float readEegSample() {
-  if (adsAvailable) {
-    int16_t raw = ads.readADC_SingleEnded(0);
-    return raw * 0.1875f;
-  }
   float t = millis() / 1000.0f;
-  float alphaWave = 0.05f * sinf(2.0f * 3.14159f * 10.0f * t);
-  float noise = (float)random(-50, 50) / 1000.0f;
-  return 0.20f + alphaWave + noise;
+  float alpha = 0.045f * sinf(2.0f * 3.14159f * 10.0f * t);
+  float beta  = 0.020f * sinf(2.0f * 3.14159f * 20.0f * t);
+  float theta = 0.035f * sinf(2.0f * 3.14159f * 6.0f * t);
+  float noise = (float)random(-30, 30) / 1000.0f;
+  return 0.18f + alpha + beta + theta + noise;
 }
 
-// Lightweight Wi-Fi Event listener (no heavy allocations in ISR context)
+// Lightweight Wi-Fi Event listener
 void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
     lastDisconnectReason = info.wifi_sta_disconnected.reason;
@@ -180,7 +173,6 @@ void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
 // =========================================================================
 void handleRootPage() {
   if (isApMode) {
-    // Scan networks safely
     int n = WiFi.scanComplete();
     if (n < 0) {
       n = WiFi.scanNetworks(false, true);
@@ -279,7 +271,7 @@ void handleRootPage() {
     page += "<div class='row'><span style='color:#888;'>Local IP</span><strong>" + WiFi.localIP().toString() + "</strong></div>";
     page += "<div class='row'><span style='color:#888;'>Wi-Fi SSID</span><strong>" + wifiSsid + "</strong></div>";
     page += "<div class='row'><span style='color:#888;'>Signal (RSSI)</span><strong>" + String(WiFi.RSSI()) + " dBm</strong></div>";
-    page += "<div class='row'><span style='color:#888;'>Sensor Mode</span><strong>" + String(adsAvailable ? "ADS1115 (0x48)" : "Simulated Demo") + "</strong></div>";
+    page += "<div class='row'><span style='color:#888;'>Sensor Mode</span><strong>Synthetic EEG Stream</strong></div>";
     page += "<div class='row'><span style='color:#888;'>Sampling Rate</span><strong>" + String(SAMPLE_RATE) + " Hz</strong></div>";
     page += "<div class='row'><span style='color:#888;'>Recording</span><strong>" + String(recording ? "Active (" + sessionId + ")" : "Idle") + "</strong></div>";
     page += "<a href='/reset-wifi' onclick=\"return confirm('Reset Wi-Fi credentials and open setup portal?');\" class='btn-danger'>RESET WI-FI & ENTER SETUP</a>";
@@ -339,7 +331,8 @@ void handleHealth() {
   response["wifiRssi"] = isApMode ? 0 : WiFi.RSSI();
   response["recording"] = recording;
   response["sessionId"] = sessionId;
-  response["adsConnected"] = adsAvailable;
+  response["adsConnected"] = false;
+  response["sensorMode"] = "SYNTHETIC_SIMULATOR";
   response["sampleRate"] = SAMPLE_RATE;
 
   String out;
@@ -463,7 +456,7 @@ void handleEeg() {
     return;
   }
 
-  StaticJsonDocument<8192> response;
+  DynamicJsonDocument response(8192);
   response["ok"] = true;
   response["deviceId"] = DEVICE_ID;
   response["sessionId"] = sessionId;
@@ -629,6 +622,8 @@ void setup() {
   Serial.begin(115200);
   delay(400);
 
+  Serial.println("\n[BOOT] InstaSight ESP32 EEG Service Starting (Pure Wi-Fi & Simulated Mode)...");
+
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
@@ -636,16 +631,6 @@ void setup() {
 
   // Wi-Fi Event listener (safe & lightweight)
   WiFi.onEvent(onWiFiEvent);
-
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-  if (ads.begin(0x48)) {
-    adsAvailable = true;
-    ads.setGain(GAIN_ONE);
-    Serial.println("[ADS1115] Initialized at 0x48.");
-  } else {
-    adsAvailable = false;
-    Serial.println("[ADS1115] Not detected at 0x48. Using simulated EEG.");
-  }
 
   // Load credentials from flash
   loadCredentials();
@@ -691,4 +676,7 @@ void loop() {
       delay(50);
     }
   }
+
+  // Yield to FreeRTOS scheduler & feed Watchdog
+  delay(1);
 }

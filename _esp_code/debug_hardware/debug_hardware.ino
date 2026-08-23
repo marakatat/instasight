@@ -35,12 +35,13 @@ void printChannelVoltages();
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
+
+  Serial.println("\n[BOOT] ESP32 Diagnostic Suite Starting...");
 
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(LED_PIN, LOW);
 
-  Serial.println("\n");
   Serial.println("================================================================");
   Serial.println("   InstaSight - ESP32 EEG Hardware & ADS1115 Diagnostic Suite   ");
   Serial.println("================================================================");
@@ -50,7 +51,8 @@ void setup() {
   Serial.println("================================================================\n");
 
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-  Wire.setClock(400000); // 400kHz fast I2C clock
+  Wire.setTimeOut(25);   // Short 25ms timeout to prevent I2C bus lockup
+  Wire.setClock(100000); // 100kHz standard robust I2C clock
 
   // 1. Run initial bus scan
   scanI2CBus();
@@ -68,7 +70,6 @@ void setup() {
     Serial.println("    - ADDR -> GND (address 0x48)");
   }
 
-  digitalWrite(LED_PIN, LOW);
   printHelp();
 }
 
@@ -99,18 +100,21 @@ void loop() {
     lastBlink = millis();
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
   }
+
+  delay(10); // Yield to FreeRTOS watchdog
 }
 
 // =========================================================================
-//  1. Full I2C Scanner
+//  1. Full I2C Scanner (Standard Safe Range 0x08 to 0x77)
 // =========================================================================
 void scanI2CBus() {
-  Serial.println("\n[I2C Scan] Scanning I2C bus (Addresses 0x01 to 0x7F)...");
+  Serial.println("\n[I2C Scan] Scanning I2C bus (Addresses 0x08 to 0x77)...");
   byte count = 0;
 
-  for (byte address = 1; address < 127; address++) {
+  for (byte address = 8; address < 120; address++) {
     Wire.beginTransmission(address);
     byte error = Wire.endTransmission();
+    yield(); // Feed watchdog during scan
 
     if (error == 0) {
       Serial.print("  -> Found I2C device at address 0x");
@@ -127,7 +131,7 @@ void scanI2CBus() {
 
       count++;
     } else if (error == 4) {
-      Serial.print("  -> Unknown error at address 0x");
+      Serial.print("  -> Bus error at address 0x");
       if (address < 16) Serial.print("0");
       Serial.println(address, HEX);
     }
