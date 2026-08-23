@@ -5,11 +5,13 @@ import { CameraPoseView } from "./CameraPoseView";
 import type { AIFeedbackEvent, PoseMetrics } from "@/types/rehabilitation";
 import { speak } from "@/lib/voice/speak";
 import { useEegStream } from "@/lib/eeg/useEegStream";
+import { EXERCISE_LIBRARY } from "@/lib/pose/exerciseLibrary";
 import Link from "next/link";
 
 type SessionState = "setup" | "active" | "processing" | "complete";
 
-export function ExerciseSession() {
+export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
+  const exercise = EXERCISE_LIBRARY[exerciseId] || EXERCISE_LIBRARY["right_arm_raise"];
   const [sessionState, setSessionState] = useState<SessionState>("setup");
   const [processingStage, setProcessingStage] = useState(1);
   const [uploadStatus, setUploadStatus] = useState("Encoding video capture...");
@@ -131,6 +133,7 @@ export function ExerciseSession() {
           onMetricsUpdate={setCurrentMetrics}
           eegTelemetry={telemetry}
           sessionId={sessionIdRef.current}
+          exerciseId={exerciseId}
         />
       </div>
 
@@ -144,7 +147,7 @@ export function ExerciseSession() {
               Telerehab Protocol
             </span>
             <h1 className="text-xl font-serif font-bold tracking-tight text-white m-0">
-              Right Arm Raise
+              {exercise.name}
             </h1>
             <div className="flex items-center gap-4 mt-3 text-xs font-mono">
               <span className="flex items-center gap-1.5 text-white/70">
@@ -159,12 +162,20 @@ export function ExerciseSession() {
             </div>
           </div>
 
-          <Link
-            href="/"
-            className="text-xs font-mono tracking-[0.2em] uppercase text-white/50 hover:text-white transition-colors bg-black/90 border border-white/20 px-4 py-3 pointer-events-auto backdrop-blur-md"
-          >
-            Exit →
-          </Link>
+          <div className="flex items-center gap-4">
+            {sessionState === "active" && (
+              <div className="flex items-center gap-2 bg-white text-black px-3 py-1.5 text-xs font-mono tracking-widest uppercase pointer-events-auto">
+                <div className="w-2 h-2 bg-red-600 animate-pulse" />
+                <span>RECORDING</span>
+              </div>
+            )}
+            <Link
+              href="/"
+              className="text-xs font-mono tracking-[0.2em] uppercase text-white/50 hover:text-white transition-colors bg-black/90 border border-white/20 px-4 py-3 pointer-events-auto backdrop-blur-md"
+            >
+              Exit →
+            </Link>
+          </div>
         </div>
 
         {/* CENTER OVERLAYS */}
@@ -180,7 +191,7 @@ export function ExerciseSession() {
                 Position Camera
               </h2>
               <p className="text-white/60 text-xs leading-relaxed mb-6 font-mono">
-                Verify your torso and right arm are clearly visible in the preview above. When positioned, begin the exercise.
+                {exercise.description} Verify your full body is clearly visible in the preview above. When positioned, begin the exercise.
               </p>
               <button 
                 onClick={handleStart}
@@ -310,7 +321,7 @@ export function ExerciseSession() {
               {/* Bottom Right: Controls */}
               <div className="bg-black/90 border border-white/20 p-3 flex items-center gap-3 pointer-events-auto backdrop-blur-md">
                 <button 
-                  onClick={() => speak("Lift your arm slowly until it is comfortable.")}
+                  onClick={() => speak(exercise.instructions)}
                   className="px-4 py-3 border border-white/20 text-white/70 hover:text-white hover:border-white text-xs font-mono tracking-wider transition-colors"
                   title="Repeat Instruction"
                 >

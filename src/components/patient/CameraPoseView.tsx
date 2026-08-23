@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { initializePoseLandmarker } from "@/lib/pose/poseTracker";
 import { DrawingUtils, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { angle } from "@/lib/pose/geometry";
-import { evaluateArmRaise } from "@/lib/pose/exerciseRules";
+import { EXERCISE_LIBRARY } from "@/lib/pose/exerciseLibrary";
 import { PoseMetrics, AIFeedbackEvent } from "@/types/rehabilitation";
 import { EegTelemetry } from "@/lib/eeg/useEegStream";
 
@@ -19,6 +19,7 @@ export function CameraPoseView({
   liveFeedback,
   eegTelemetry,
   sessionId = "session_live",
+  exerciseId = "right_arm_raise",
   onMetricsUpdate
 }: {
   isActive?: boolean;
@@ -31,6 +32,7 @@ export function CameraPoseView({
   liveFeedback?: { suggestion: string; severity: string } | null;
   eegTelemetry?: EegTelemetry | null;
   sessionId?: string;
+  exerciseId?: string;
   onMetricsUpdate?: (metrics: PoseMetrics) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -48,6 +50,9 @@ export function CameraPoseView({
     movementScore: 0,
     rangeOfMotion: 0,
   });
+
+  const lastErrorRef = useRef<string | null>(null);
+  const lastErrorTimeRef = useRef<number>(0);
 
   const callbacksRef = useRef({
     onLoaded,
@@ -226,22 +231,53 @@ export function CameraPoseView({
               });
             }
 
-            const landmarks = result.landmarks[0];
-            const rightShoulder = landmarks[12];
-            const rightElbow = landmarks[14];
-            const rightWrist = landmarks[16];
-            const rightHip = landmarks[24];
+            if (result.landmarks[0]) {
+              const exerciseDef = EXERCISE_LIBRARY[exerciseId] || EXERCISE_LIBRARY["right_arm_raise"];
+              const newMetrics = exerciseDef.evaluator(
+                result.landmarks[0],
+                metricsRef.current.phase,
+                metricsRef.current.repetition
+              );
 
-            if (rightShoulder && rightElbow && rightWrist && rightHip) {
-              const shoulderAngle = angle(rightElbow, rightShoulder, rightHip);
-              const elbowAngle = angle(rightWrist, rightElbow, rightShoulder);
-
-              const newMetrics = evaluateArmRaise({
-                shoulderAngle,
-                elbowAngle,
-                previousPhase: metricsRef.current.phase,
-                repetition: metricsRef.current.repetition,
-              });
+              // Real-time AI vocal instructions based on form errors
+              if (newMetrics.error) {
+                if (newMetrics.error !== lastErrorRef.current || (performance.now() - lastErrorTimeRef.current > 6000)) {
+                  lastErrorRef.current = newMetrics.error;
+                  lastErrorTimeRef.current = performance.now();
+                  
+                  if (typeof window !== "undefined" && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(new SpeechSynthesisUtterance(newMetrics.error));
+                  }
+                  
+                  if (callbacksRef.current.onAIEvent) {
+                    callbacksRef.current.onAIEvent({
+                      id: `rt_${Date.now()}`,
+                      sessionId: sessionId,
+                      videoTimeMs: Math.round(video.currentTime * 1000),
+                      createdAt: new Date().toISOString(),
+                      suggestion: newMetrics.error,
+                      severity: "warning",
+                      reasonCodes: ["realtime_form_correction"],
+                      evidence: {
+                        videoTimeMs: Math.round(video.currentTime * 1000),
+                        repetitionNumber: newMetrics.repetition,
+                        exercisePhase: newMetrics.phase as any,
+                        poseConfidence: 0.95
+                      },
+                      confidence: 1.0,
+                      modelName: "deterministic_rules",
+                      modelVersion: "1.0",
+                      source: "rules",
+                      therapistReviewed: false
+                    });
+                  }
+                }
+              } else {
+                if (lastErrorRef.current && (performance.now() - lastErrorTimeRef.current > 2000)) {
+                   lastErrorRef.current = null;
+                }
+              }
 
               if (mediaRecorderRef.current?.state === "recording" && 
                   metricsRef.current.phase === "holding" && 
@@ -257,10 +293,10 @@ export function CameraPoseView({
                         sessionId: sessionId,
                         videoTimeMs: Math.round(video.currentTime * 1000),
                         repetitionNumber: newMetrics.repetition,
-                        exerciseId: "right_arm_raise",
+                        exerciseId: exerciseDef.id,
                         pose: {
-                          shoulderAngle: newMetrics.rightShoulderAngle,
-                          elbowAngle: newMetrics.rightElbowAngle,
+                          shoulderAngle: newMetrics.rightShoulderAngle || 0,
+                          elbowAngle: newMetrics.rightElbowAngle || 0,
                           movementDurationMs: 3000,
                           rangeOfMotion: newMetrics.rangeOfMotion,
                           poseConfidence: 0.95
@@ -330,12 +366,7 @@ export function CameraPoseView({
           className="absolute inset-0 h-full w-full object-cover pointer-events-none" 
         />
         
-        {isRecording && (
-          <div className="absolute top-6 right-8 flex items-center gap-2 bg-white text-black px-3 py-1.5 text-xs font-mono tracking-widest uppercase z-50">
-            <div className="w-2 h-2 bg-red-600 animate-pulse" />
-            <span>RECORDING</span>
-          </div>
-        )}
+
 
         {liveFeedback && (
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 min-w-[320px] max-w-md animate-in fade-in duration-200">

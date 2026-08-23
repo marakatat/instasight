@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, UserCircle, SignOut } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, UserCircle, SignOut, Pulse, Heartbeat, Brain } from "@phosphor-icons/react/dist/ssr";
 import { createClient } from "@/utils/supabase/server";
 
 export default async function Home() {
@@ -7,113 +7,160 @@ export default async function Home() {
   const { data: { user } } = await supabase.auth.getUser();
 
   return (
-    <main className="min-h-[100dvh] bg-black flex flex-col">
-
-      {/* ── Auth header ── */}
-      <header className="w-full max-w-[1200px] mx-auto px-6 md:px-12 pt-8 flex justify-between items-center">
-        <span className="text-xs font-mono tracking-[0.3em] uppercase text-white/40">
-          Instasight
-        </span>
+    <main className="min-h-[100dvh] bg-zinc-950 flex flex-col text-zinc-100 font-sans selection:bg-zinc-800 selection:text-zinc-100">
+      
+      {/* ── Structural Header ── */}
+      <header className="w-full max-w-7xl mx-auto px-6 md:px-12 py-8 flex justify-between items-center border-b border-zinc-900">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 bg-zinc-100 rounded-full animate-pulse" />
+          <span className="text-sm font-medium text-zinc-300">
+            Kineviz
+          </span>
+        </div>
+        
         {user ? (
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-white/60 flex items-center gap-2">
-              <UserCircle size={18} weight="regular" className="text-white/40" />
+          <div className="flex items-center gap-6">
+            <span className="text-xs font-mono text-zinc-500 flex items-center gap-2">
+              <UserCircle size={16} weight="regular" className="text-zinc-400" />
               {user.email}
             </span>
             <form action="/api/auth/signout" method="post">
-              <button className="text-xs text-white/40 hover:text-white transition-colors flex items-center gap-1">
-                <SignOut size={14} weight="bold" /> Logout
+              <button className="text-sm font-medium text-zinc-500 hover:text-zinc-100 transition-colors flex items-center gap-2">
+                Logout <SignOut size={14} weight="bold" />
               </button>
             </form>
           </div>
         ) : (
           <Link
             href="/login"
-            className="text-sm text-white/60 hover:text-white transition-colors"
+            className="text-sm font-medium text-zinc-950 bg-zinc-100 hover:bg-white px-6 py-2.5 rounded-sm transition-colors"
           >
-            Sign In →
+            Sign in
           </Link>
         )}
       </header>
 
-      {/* ── Hero ── */}
-      <section className="flex-1 flex flex-col justify-center max-w-[1200px] mx-auto w-full px-6 md:px-12 py-24 md:py-32">
-        <h1 className="text-6xl md:text-8xl lg:text-9xl font-serif font-bold tracking-tight leading-[0.95] text-white">
-          INSTA
-          <br />
-          SIGHT
-        </h1>
-        <p className="mt-8 text-lg md:text-xl text-white/50 max-w-xl leading-relaxed">
-          Real-time pose estimation and clinical AI feedback — bridging
-          in-clinic sessions with at-home recovery.
-        </p>
+      {/* ── Asymmetric Hero ── */}
+      <section className="w-full max-w-7xl mx-auto px-6 md:px-12 py-24 md:py-32 grid md:grid-cols-12 gap-12 items-end">
+        <div className="md:col-span-8 flex flex-col">
+          <div className="inline-flex items-center gap-3 text-sm font-medium text-zinc-500 mb-12">
+            <span className="w-8 h-px bg-zinc-800" />
+            Platform v2.0
+          </div>
+          
+          <h1 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tighter leading-[0.85] text-zinc-100">
+            Kineviz.
+          </h1>
+        </div>
+        
+        <div className="md:col-span-4 pb-4">
+          <p className="text-sm md:text-base text-zinc-400 leading-relaxed max-w-sm">
+            Clinical kinematic tracking and real-time posture feedback. Bridging the gap between in-clinic sessions and remote recovery through browser-based telemetry.
+          </p>
+        </div>
+      </section>
 
-        <hr className="rule-heavy mt-16 mb-12" />
+      <div className="w-full h-px bg-zinc-900 max-w-7xl mx-auto" />
 
-        {/* ── Portal links ── */}
-        <div className="grid md:grid-cols-2 gap-px bg-white/10">
+      {/* ── Asymmetric Portal Links ── */}
+      <section className="w-full max-w-7xl mx-auto px-6 md:px-12 py-24">
+        <div className="grid md:grid-cols-12 gap-8 md:gap-12">
+          
           <Link
             href="/patient/session/right_arm_raise"
-            className="group bg-black p-8 md:p-12 flex flex-col justify-between min-h-[200px] hover:bg-white hover:text-black transition-all duration-300"
+            className="md:col-span-7 group block relative p-10 md:p-14 bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-900 hover:border-zinc-700 transition-all duration-500 overflow-hidden"
           >
-            <div>
-              <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 group-hover:text-black/40 transition-colors">
-                Patient
-              </span>
-              <h2 className="text-3xl md:text-4xl font-serif mt-4 group-hover:text-black transition-colors">
-                Start Exercise
-              </h2>
-            </div>
-            <div className="flex items-center gap-2 mt-8 text-white/50 group-hover:text-black transition-colors">
-              <span className="text-sm">Begin a live session</span>
-              <ArrowRight size={18} weight="bold" className="group-hover:translate-x-2 transition-transform" />
+            <div className="relative z-10 flex flex-col h-full min-h-[240px] justify-between">
+              <div>
+                <span className="text-xs font-medium text-zinc-500 mb-6 block">
+                  01 / Patient
+                </span>
+                <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-zinc-100">
+                  Live Session
+                </h2>
+              </div>
+              <div className="flex items-center justify-between mt-12 text-zinc-400 group-hover:text-zinc-100 transition-colors">
+                <span className="text-sm font-medium">Initialize tracking</span>
+                <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform duration-500" />
+              </div>
             </div>
           </Link>
 
           <Link
             href="/doctor/dashboard"
-            className="group bg-black p-8 md:p-12 flex flex-col justify-between min-h-[200px] hover:bg-white hover:text-black transition-all duration-300"
+            className="md:col-span-5 group block relative p-10 md:p-14 bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-900 hover:border-zinc-700 transition-all duration-500 overflow-hidden mt-8 md:mt-24"
           >
-            <div>
-              <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 group-hover:text-black/40 transition-colors">
-                Clinician
-              </span>
-              <h2 className="text-3xl md:text-4xl font-serif mt-4 group-hover:text-black transition-colors">
-                Doctor Dashboard
-              </h2>
-            </div>
-            <div className="flex items-center gap-2 mt-8 text-white/50 group-hover:text-black transition-colors">
-              <span className="text-sm">Review AI sessions</span>
-              <ArrowRight size={18} weight="bold" className="group-hover:translate-x-2 transition-transform" />
+            <div className="relative z-10 flex flex-col h-full min-h-[240px] justify-between">
+              <div>
+                <span className="text-xs font-medium text-zinc-500 mb-6 block">
+                  02 / Clinician
+                </span>
+                <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-zinc-100">
+                  Dashboard
+                </h2>
+              </div>
+              <div className="flex items-center justify-between mt-12 text-zinc-400 group-hover:text-zinc-100 transition-colors">
+                <span className="text-sm font-medium">Review telemetry</span>
+                <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform duration-500" />
+              </div>
             </div>
           </Link>
+
         </div>
       </section>
 
-      {/* ── Bottom feature strip ── */}
-      <footer className="border-t border-white/10 max-w-[1200px] mx-auto w-full px-6 md:px-12">
-        <div className="grid md:grid-cols-3 divide-x divide-white/10 py-12">
-          <div className="pr-8">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40">01</span>
-            <h3 className="text-lg font-serif mt-2">Pose Estimation</h3>
-            <p className="text-sm text-white/40 mt-2 leading-relaxed">
-              MediaPipe-powered computer vision captures ROM, cadence, and posture directly in the browser.
-            </p>
+      {/* ── Staggered Feature List (No 3-column equal grid!) ── */}
+      <footer className="w-full max-w-7xl mx-auto px-6 md:px-12 py-24 border-t border-zinc-900">
+        <div className="flex flex-col gap-16 md:gap-24">
+          
+          <div className="grid md:grid-cols-12 gap-8 items-start">
+            <div className="md:col-span-4 flex items-center gap-4 text-zinc-500">
+              <span className="text-sm font-medium">Phase 01</span>
+              <div className="w-8 h-px bg-zinc-800" />
+            </div>
+            <div className="md:col-span-8 grid md:grid-cols-2 gap-8">
+              <div>
+                <Heartbeat size={24} weight="light" className="text-zinc-400 mb-6" />
+                <h3 className="text-xl font-medium text-zinc-100 mb-3">Kinematic Extraction</h3>
+              </div>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Browser-based MediaPipe tracking captures joint angles, range of motion, and repetition cadence without external hardware.
+              </p>
+            </div>
           </div>
-          <div className="px-8">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40">02</span>
-            <h3 className="text-lg font-serif mt-2">AI Feedback</h3>
-            <p className="text-sm text-white/40 mt-2 leading-relaxed">
-              Real-time clinical suggestions spoken aloud during exercise, with full traceability for doctor review.
-            </p>
+
+          <div className="grid md:grid-cols-12 gap-8 items-start">
+            <div className="md:col-span-4 flex items-center gap-4 text-zinc-500">
+              <span className="text-sm font-medium">Phase 02</span>
+              <div className="w-8 h-px bg-zinc-800" />
+            </div>
+            <div className="md:col-span-8 grid md:grid-cols-2 gap-8">
+              <div>
+                <Brain size={24} weight="light" className="text-zinc-400 mb-6" />
+                <h3 className="text-xl font-medium text-zinc-100 mb-3">Clinical Evaluation</h3>
+              </div>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Real-time vocal feedback corrects posture and pace. Full event logs are synchronized for clinician review.
+              </p>
+            </div>
           </div>
-          <div className="pl-8">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40">03</span>
-            <h3 className="text-lg font-serif mt-2">EEG Telemetry</h3>
-            <p className="text-sm text-white/40 mt-2 leading-relaxed">
-              ESP32-based motor intent detection fused with kinematic data for comprehensive neuro-rehabilitation.
-            </p>
+
+          <div className="grid md:grid-cols-12 gap-8 items-start">
+            <div className="md:col-span-4 flex items-center gap-4 text-zinc-500">
+              <span className="text-sm font-medium">Phase 03</span>
+              <div className="w-8 h-px bg-zinc-800" />
+            </div>
+            <div className="md:col-span-8 grid md:grid-cols-2 gap-8">
+              <div>
+                <Pulse size={24} weight="light" className="text-zinc-400 mb-6" />
+                <h3 className="text-xl font-medium text-zinc-100 mb-3">Motor Intent Fusion</h3>
+              </div>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Optional ESP32 integration maps EEG signals to kinematic outcomes, providing comprehensive neuro-rehabilitation data.
+              </p>
+            </div>
           </div>
+
         </div>
       </footer>
     </main>
