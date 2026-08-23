@@ -13,7 +13,10 @@ import { EegTelemetry } from "@/lib/eeg/useEegStream";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const deviceId = body.deviceId || "esp32-01";
+    const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : "";
+    if (!deviceId) {
+      return NextResponse.json({ error: "Missing required deviceId" }, { status: 400 });
+    }
     const sequence = body.sequence || 1;
     const sessionId = body.sessionId;
 
@@ -29,12 +32,12 @@ export async function POST(request: NextRequest) {
         sequence,
         source: body.source || "esp32_hardware",
         signalQuality: body.signalQuality,
-        motorAttemptProbability: body.motorAttemptProbability ?? 0.5,
-        confidence: body.confidence ?? 0.85,
-        erdPercentage: body.erdPercentage ?? 0,
-        isAttemptDetected: body.isAttemptDetected ?? (body.motorAttemptProbability >= 0.65),
-        bands: body.bands || { delta: 0.1, theta: 0.1, alpha: 0.3, mu: 0.2, beta: 0.2, gamma: 0.1 },
-        filteredPreview: body.filteredPreview || [],
+        motorAttemptProbability: typeof body.motorAttemptProbability === "number" ? body.motorAttemptProbability : 0,
+        confidence: typeof body.confidence === "number" ? body.confidence : 0,
+        erdPercentage: typeof body.erdPercentage === "number" ? body.erdPercentage : 0,
+        isAttemptDetected: Boolean(body.isAttemptDetected),
+        bands: body.bands || { delta: 0, theta: 0, alpha: 0, mu: 0, beta: 0, gamma: 0 },
+        filteredPreview: Array.isArray(body.filteredPreview) ? body.filteredPreview : [],
         timestamp: Date.now(),
       };
     } else {
@@ -68,7 +71,11 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const deviceId = searchParams.get("deviceId") || "esp32-01";
+  const deviceId = searchParams.get("deviceId")?.trim();
+
+  if (!deviceId) {
+    return NextResponse.json({ error: "Missing required deviceId" }, { status: 400 });
+  }
 
   const { telemetry, isHardwareOnline, lastSeenMs } = deviceStore.getTelemetry(deviceId);
   const currentCommand = deviceStore.getCommand(deviceId);

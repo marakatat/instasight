@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
+  // Fast path for ESP32 and client telemetry endpoints (no auth cookie lookup required)
+  if (request.nextUrl.pathname.startsWith('/api/device/')) {
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -36,6 +41,11 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Fast path for ESP32 and client telemetry endpoints (no auth cookie lookup required)
+  if (request.nextUrl.pathname.startsWith('/api/device/')) {
+    return NextResponse.next();
+  }
 
   const isProtectedRoute =
     request.nextUrl.pathname.startsWith('/doctor') ||

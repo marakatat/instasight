@@ -63,6 +63,7 @@ Respond ONLY in pure JSON format:
       try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
+          signal: AbortSignal.timeout(5000),
           headers: {
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
@@ -78,13 +79,15 @@ Respond ONLY in pure JSON format:
 
         if (response.ok) {
           const data = await response.json();
-          const content = data.choices[0].message.content.trim();
-          const parsed = JSON.parse(content.replace(/^```json|```$/g, ''));
-          if (parsed.patientSummary) patientSummary = parsed.patientSummary;
-          if (parsed.doctorSummary) doctorSummary = parsed.doctorSummary;
+          const content = data.choices?.[0]?.message?.content?.trim();
+          if (content) {
+            const parsed = JSON.parse(content.replace(/^```json|```$/g, ''));
+            if (parsed.patientSummary) patientSummary = parsed.patientSummary;
+            if (parsed.doctorSummary) doctorSummary = parsed.doctorSummary;
+          }
         }
       } catch (err) {
-        console.error("AI Summarization failed, using fallbacks:", err);
+        console.warn("AI Summarization timed out or failed, using standard summary:", err);
       }
     }
 

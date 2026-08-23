@@ -78,15 +78,8 @@ export function CameraPoseView({
 
   // MediaRecorder management — starts/stops cleanly without tearing down the stream
   useEffect(() => {
-    const stream = mediaStreamRef.current;
+    const stream = mediaStreamRef.current || (videoRef.current?.srcObject as MediaStream | null);
     if (!stream) return;
-
-    // Check if stream has active video tracks
-    const hasLiveTracks = stream.getVideoTracks().some(t => t.readyState === "live");
-    if (!hasLiveTracks) {
-      console.warn("MediaStream tracks are not live yet, skipping recording start.");
-      return;
-    }
 
     if (isRecording) {
       recordedChunksRef.current = [];
@@ -357,7 +350,7 @@ export function CameraPoseView({
         
         <video 
           ref={videoRef} 
-          className="absolute inset-0 h-full w-full object-cover opacity-90" 
+          className="absolute inset-0 h-full w-full object-cover opacity-100" 
           playsInline 
           muted 
         />
