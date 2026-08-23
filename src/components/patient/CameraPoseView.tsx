@@ -295,7 +295,10 @@ export function CameraPoseView({
                           },
                           eeg: currentEeg ? {
                             signalQuality: currentEeg.signalQuality,
+                            motorAttemptProbability: currentEeg.motorAttemptProbability,
                             motorIntentScore: currentEeg.motorAttemptProbability,
+                            erdPercentage: currentEeg.erdPercentage,
+                            isAttemptDetected: currentEeg.isAttemptDetected,
                             intentionState: currentEeg.intentionState,
                             fatigueIndex: currentEeg.fatigueIndex,
                           } : null

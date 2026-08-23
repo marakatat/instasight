@@ -55,7 +55,6 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
     }
 
     try {
-      setProcessingStage(2);
       setUploadStatus("Syncing timecodes and uploading video stream...");
       
       // Wait for any inflight AI cues to finish, but do not block forever (5s max)
@@ -66,7 +65,6 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
         ]);
       }
 
-      setProcessingStage(3);
       setUploadStatus("Generating clinical report & PT analysis...");
 
       const formData = new FormData();
@@ -180,6 +178,7 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
           onAIEvent={handleAIEvent}
           onAIPromise={handleAIPromise}
           shouldTriggerAI={shouldTriggerAI}
+          eegTelemetry={telemetry}
           onLoaded={handleLoaded}
           liveFeedback={liveFeedback}
           onMetricsUpdate={setCurrentMetrics}
