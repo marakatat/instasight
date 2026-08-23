@@ -54,12 +54,14 @@ interface UseEegStreamOptions {
   pollIntervalMs?: number;
   onFeedback?: (feedback: CombinedFeedbackEvent) => void;
   onTelemetry?: (telemetry: EegTelemetry | null) => void;
+  isPolling?: boolean;
 }
 
 export function useEegStream(options: UseEegStreamOptions = {}) {
   const {
     deviceId,
-    pollIntervalMs = 250,
+    pollIntervalMs = 150,
+    isPolling = true,
     onFeedback,
     onTelemetry,
   } = options;
@@ -136,6 +138,18 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
       setIsConnected(false);
       setIsHardwareOnline(false);
       setTelemetry(null);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      return;
+    }
+    
+    if (!isPolling) {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
       return;
     }
 
@@ -148,9 +162,10 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
     return () => {
       if (pollRef.current) {
         clearInterval(pollRef.current);
+        pollRef.current = null;
       }
     };
-  }, [fetchTelemetry, pollIntervalMs, activeDevId]);
+  }, [fetchTelemetry, pollIntervalMs, isPolling, activeDevId]);
 
   // Command helper to start streaming on ESP32
   const startStream = useCallback(

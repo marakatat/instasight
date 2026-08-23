@@ -29,23 +29,28 @@ export default async function DoctorSessionPage({
   if (error) console.error("Error fetching session events:", error);
 
   // Map DB rows back to AIFeedbackEvent shape
-  const events: AIFeedbackEvent[] = (rawEvents || []).map((row) => ({
-    id: row.id,
-    sessionId: row.session_id,
-    videoTimeMs: row.video_time_ms,
-    repetitionNumber: row.repetition_number,
-    suggestion: row.suggestion,
-    clinicalNote: row.clinical_note,
-    severity: row.severity,
-    reasonCodes: row.reason_codes,
-    evidence: row.evidence,
-    modelName: row.model_name,
-    modelVersion: "1.0",
-    confidence: row.confidence,
-    source: row.source,
-    createdAt: row.created_at,
-    therapistReviewed: false,
-  }));
+  const events: AIFeedbackEvent[] = (rawEvents || [])
+    .filter((row) => row.source !== "summary")
+    .map((row) => ({
+      id: row.id,
+      sessionId: row.session_id,
+      videoTimeMs: row.video_time_ms,
+      repetitionNumber: row.repetition_number,
+      suggestion: row.suggestion,
+      clinicalNote: row.clinical_note,
+      severity: row.severity,
+      reasonCodes: row.reason_codes,
+      evidence: row.evidence,
+      modelName: row.model_name,
+      modelVersion: "1.0",
+      confidence: row.confidence,
+      source: row.source,
+      createdAt: row.created_at,
+      therapistReviewed: false,
+    }));
+
+  const summaryRow = (rawEvents || []).find((row) => row.source === "summary");
+  const doctorSummary = session?.doctor_summary || summaryRow?.clinical_note || undefined;
 
   const videoUrl = session?.video_url || null;
 
@@ -83,7 +88,7 @@ export default async function DoctorSessionPage({
           <SessionVideoReview 
             events={events} 
             videoUrl={videoUrl} 
-            doctorSummary={session?.doctor_summary}
+            doctorSummary={doctorSummary}
             eegMetrics={eegMetrics}
           />
         ) : (
@@ -98,4 +103,3 @@ export default async function DoctorSessionPage({
     </main>
   );
 }
-
