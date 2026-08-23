@@ -59,30 +59,38 @@ export default async function DoctorSessionPage({
   const eegMetrics = deviceStore.getSessionMetrics("esp32-eeg-01", sessionId);
 
   return (
-    <main className="min-h-[100dvh] bg-black p-6 md:p-12 text-white">
-      <div className="max-w-[1600px] mx-auto">
-        <header className="mb-10">
-          <Link
-            href="/doctor/dashboard"
-            className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors inline-block mb-6"
-          >
-            ← Doctor Dashboard
-          </Link>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <main className="min-h-[100dvh] bg-[#F7F4EE] p-6 md:p-10 text-[#36332E] font-sans">
+      <div className="max-w-[1440px] mx-auto bg-white rounded-[48px] shadow-sm border border-gray-100 p-8 flex flex-col gap-8">
+        
+        {/* Real Header with Figma Styling */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-gray-100">
+          <div className="flex flex-col gap-2">
+            <Link
+              href="/doctor/dashboard"
+              className="text-[10px] font-bold tracking-widest uppercase text-gray-400 hover:text-[#36332E] transition-colors"
+            >
+              ← Back to Dashboard
+            </Link>
+            <h1 className="text-3xl font-serif font-bold tracking-tight text-[#36332E]">
+              Clinical Neuro-Kinematic Review
+            </h1>
+          </div>
+          
+          <div className="flex gap-8 text-sm">
             <div>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight text-white">
-                Clinical Neuro-Kinematic Review
-              </h1>
-              <p className="text-white/40 text-sm mt-2 font-mono">
-                Protocol: <span className="text-white">Right Arm Raise</span> 
-                {" "}• Session: <span className="text-white/70">{sessionId}</span>
-                {" "}• Device: <span className="text-emerald-400 font-mono">esp32-eeg-01</span>
-              </p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Protocol</p>
+              <p className="text-[#36332E] font-bold">Right Arm Raise</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Session ID</p>
+              <p className="text-[#36332E] font-bold max-w-[120px] truncate" title={sessionId}>{sessionId}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Device</p>
+              <p className="text-emerald-600 font-bold">esp32-eeg-01</p>
             </div>
           </div>
         </header>
-
-        <hr className="rule-light !mt-0 mb-10" />
 
         {events.length > 0 || videoUrl ? (
           <SessionVideoReview 
@@ -92,9 +100,9 @@ export default async function DoctorSessionPage({
             eegMetrics={eegMetrics}
           />
         ) : (
-          <div className="border border-white/15 p-16 text-center">
-            <h2 className="text-2xl font-serif text-white mb-2">No session data recorded</h2>
-            <p className="text-white/40 text-sm max-w-md mx-auto">
+          <div className="py-24 text-center bg-[#F7F4EE] rounded-[40px] m-4">
+            <h2 className="text-2xl font-serif font-bold text-[#36332E] mb-2">No session data recorded</h2>
+            <p className="text-gray-400 text-sm max-w-md mx-auto">
               This session does not contain recorded video or telemetry events.
             </p>
           </div>

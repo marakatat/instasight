@@ -32,9 +32,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${playfair.variable} ${inter.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
+      className={`${playfair.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-black text-white" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col bg-[#F7F4EE] text-[#36332E]" suppressHydrationWarning>
         {children}
       </body>
     </html>

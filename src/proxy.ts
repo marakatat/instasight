@@ -31,7 +31,12 @@ export async function proxy(request: NextRequest) {
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              httpOnly: true,
+            })
           );
         },
       },
@@ -47,10 +52,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isProtectedRoute =
-    request.nextUrl.pathname.startsWith('/doctor') ||
-    request.nextUrl.pathname.startsWith('/patient') ||
-    request.nextUrl.pathname.startsWith('/onboarding');
+  const isDoctorRoute = request.nextUrl.pathname.startsWith('/doctor');
+  const isPatientRoute = request.nextUrl.pathname.startsWith('/patient');
+  const isProtectedRoute = isDoctorRoute || isPatientRoute || request.nextUrl.pathname.startsWith('/onboarding');
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login');
 
   if (isProtectedRoute && !user) {
@@ -60,11 +64,54 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  if (user && (isDoctorRoute || isPatientRoute)) {
+    // RBAC: Check user role
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching profile role in proxy:', error);
+    }
+
+    const role = profile?.role;
+
+    if (isDoctorRoute && role !== 'doctor') {
+      // Allow patients to view the clinical reports specifically
+      const isSessionReport = request.nextUrl.pathname.startsWith('/doctor/sessions/');
+      if (!(role === 'patient' && isSessionReport)) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/login';
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+    // Allow doctors to view patient routes for testing/demo purposes
+    if (isPatientRoute && role !== 'patient' && role !== 'doctor') {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   if (isAuthRoute && user) {
     // Redirect authenticated users away from login
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/';
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // Simple CSRF Check for API mutations
+  if (request.nextUrl.pathname.startsWith('/api/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method)) {
+    const origin = request.headers.get('origin');
+    const host = request.headers.get('host');
+    if (origin && host) {
+      const originHost = new URL(origin).host;
+      if (originHost !== host) {
+        return new NextResponse("CSRF Violation", { status: 403 });
+      }
+    }
   }
 
   // Security headers

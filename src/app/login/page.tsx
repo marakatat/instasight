@@ -48,23 +48,22 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-black flex flex-col items-center justify-center px-6">
-
-      <div className="w-full max-w-md">
+    <main className="min-h-[100dvh] bg-[#F7F4EE] flex flex-col items-center justify-center px-6 font-sans">
+      <div className="w-full max-w-md bg-white rounded-[40px] p-8 md:p-12 shadow-sm border border-gray-100">
 
         {/* ── Back link ── */}
         <Link
           href="/"
-          className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors mb-12 inline-block"
+          className="text-[10px] font-bold tracking-widest uppercase text-gray-400 hover:text-[#36332E] transition-colors mb-10 inline-block"
         >
           ← Instasight
         </Link>
 
         {/* ── Heading ── */}
-        <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">
+        <h1 className="text-3xl md:text-4xl font-serif font-bold text-[#36332E] mb-3">
           {isSignUp ? "Create Account" : "Sign In"}
         </h1>
-        <p className="text-white/40 text-sm mb-10">
+        <p className="text-gray-500 text-sm mb-8">
           {isSignUp
             ? "Join the next generation of clinical telerehabilitation."
             : "Access your patient or clinician portal."}
@@ -72,15 +71,15 @@ export default function LoginPage() {
 
         {/* ── Error ── */}
         {error && (
-          <div className="mb-6 p-4 border border-white/20 bg-white/5 text-white text-sm">
+          <div className="mb-6 p-4 rounded-2xl border border-red-100 bg-red-50 text-[#B86F68] text-sm font-medium">
             {error}
           </div>
         )}
 
         {/* ── Form ── */}
-        <form onSubmit={handleAuth} className="space-y-6">
+        <form onSubmit={handleAuth} className="space-y-5">
           <div>
-            <label className="block text-xs font-mono tracking-[0.15em] uppercase text-white/40 mb-2">
+            <label className="block text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
               Email
             </label>
             <input
@@ -88,13 +87,13 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-transparent border border-white/15 px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-white/50 transition-colors"
+              className="w-full bg-[#F7F4EE] border border-[#EAE5D9] rounded-[24px] px-5 py-4 text-[#36332E] placeholder:text-gray-400 focus:outline-none focus:border-gray-300 transition-colors"
               placeholder="hello@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-mono tracking-[0.15em] uppercase text-white/40 mb-2">
+            <label className="block text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
               Password
             </label>
             <input
@@ -102,7 +101,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full bg-transparent border border-white/15 px-4 py-3.5 text-white placeholder:text-white/20 focus:outline-none focus:border-white/50 transition-colors"
+              className="w-full bg-[#F7F4EE] border border-[#EAE5D9] rounded-[24px] px-5 py-4 text-[#36332E] placeholder:text-gray-400 focus:outline-none focus:border-gray-300 transition-colors"
               placeholder="••••••••"
             />
           </div>
@@ -110,18 +109,17 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-white text-black py-4 font-bold text-sm tracking-wide hover:bg-white/90 transition-colors disabled:opacity-40 mt-2"
+            className="w-full bg-[#36332E] text-white rounded-[24px] py-4 font-bold text-[11px] tracking-widest uppercase hover:bg-black transition-colors disabled:opacity-40 mt-4"
           >
-            {loading ? "Processing..." : isSignUp ? "CREATE ACCOUNT →" : "SIGN IN →"}
+            {loading ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
           </button>
         </form>
 
         {/* ── Toggle ── */}
-        <hr className="rule-light mt-10 mb-6" />
-        <div className="text-center">
+        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
           <button
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-sm text-white/40 hover:text-white transition-colors"
+            className="text-[11px] font-bold tracking-wide text-gray-400 hover:text-[#36332E] transition-colors"
           >
             {isSignUp
               ? "Already have an account? Sign In"

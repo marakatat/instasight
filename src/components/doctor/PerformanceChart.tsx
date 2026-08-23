@@ -86,46 +86,46 @@ export function PerformanceChart({
   };
 
   return (
-    <div className="border border-white/15 bg-zinc-950 p-6 md:p-8 space-y-6">
+    <div className="bg-white rounded-[40px] p-6 md:p-8 space-y-8 font-sans border border-gray-100 shadow-sm">
       {/* Header & Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-2">
         <div>
-          <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/40 block mb-1">
+          <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block mb-2">
             Neuro-Kinematic Telemetry
           </span>
-          <h3 className="text-xl md:text-2xl font-serif font-bold text-white">
+          <h3 className="text-2xl font-serif font-bold text-[#36332E]">
             Brainwave & Movement Analysis
           </h3>
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-1 bg-white/5 p-1 border border-white/10 self-start">
+        <div className="flex items-center gap-1 bg-[#F7F4EE] p-1.5 rounded-2xl self-start">
           <button
             onClick={() => setActiveTab("timeline")}
-            className={`px-3 py-1.5 text-xs font-mono tracking-wider uppercase transition-colors ${
+            className={`px-4 py-2 text-[10px] font-bold tracking-widest uppercase transition-all rounded-xl ${
               activeTab === "timeline"
-                ? "bg-white text-black font-bold"
-                : "text-white/60 hover:text-white"
+                ? "bg-white text-[#36332E] shadow-sm"
+                : "text-gray-400 hover:text-gray-600"
             }`}
           >
             Kinematics + EEG
           </button>
           <button
             onClick={() => setActiveTab("spectrum")}
-            className={`px-3 py-1.5 text-xs font-mono tracking-wider uppercase transition-colors ${
+            className={`px-4 py-2 text-[10px] font-bold tracking-widest uppercase transition-all rounded-xl ${
               activeTab === "spectrum"
-                ? "bg-white text-black font-bold"
-                : "text-white/60 hover:text-white"
+                ? "bg-white text-[#36332E] shadow-sm"
+                : "text-gray-400 hover:text-gray-600"
             }`}
           >
             Frequency Bands
           </button>
           <button
             onClick={() => setActiveTab("clinical")}
-            className={`px-3 py-1.5 text-xs font-mono tracking-wider uppercase transition-colors ${
+            className={`px-4 py-2 text-[10px] font-bold tracking-widest uppercase transition-all rounded-xl ${
               activeTab === "clinical"
-                ? "bg-white text-black font-bold"
-                : "text-white/60 hover:text-white"
+                ? "bg-white text-[#36332E] shadow-sm"
+                : "text-gray-400 hover:text-gray-600"
             }`}
           >
             Neuro Metrics
@@ -134,72 +134,72 @@ export function PerformanceChart({
       </div>
 
       {/* Primary KPI Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/10">
-        <div className="bg-black p-4">
-          <span className="text-[10px] font-mono tracking-wider uppercase text-white/40 block mb-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-[#F7F4EE] rounded-[32px] p-6">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-gray-400 block mb-2">
             Peak Motor Intent
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-mono font-bold text-emerald-400">
+            <span className="text-3xl font-bold text-[#36332E]">
               {peakIntent}%
             </span>
-            <span className="text-[10px] font-mono text-emerald-500/80">Active</span>
+            <span className="text-[10px] font-bold text-emerald-500">Active</span>
           </div>
         </div>
 
-        <div className="bg-black p-4">
-          <span className="text-[10px] font-mono tracking-wider uppercase text-white/40 block mb-1">
+        <div className="bg-[#F7F4EE] rounded-[32px] p-6">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-gray-400 block mb-2">
             Mu Desynchronization (ERD)
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-mono font-bold text-white">
+            <span className="text-3xl font-bold text-[#36332E]">
               {muErd > 0 ? `+${muErd}%` : `${muErd}%`}
             </span>
-            <span className="text-[10px] font-mono text-white/40">8-13 Hz</span>
+            <span className="text-[10px] font-bold text-gray-400">8-13 Hz</span>
           </div>
         </div>
 
-        <div className="bg-black p-4">
-          <span className="text-[10px] font-mono tracking-wider uppercase text-white/40 block mb-1">
+        <div className="bg-[#F7F4EE] rounded-[32px] p-6">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-gray-400 block mb-2">
             Avg Cortical Intent
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-mono font-bold text-white">
+            <span className="text-3xl font-bold text-[#36332E]">
               {avgIntent}%
             </span>
-            <span className="text-[10px] font-mono text-white/40">Baseline +25%</span>
+            <span className="text-[10px] font-bold text-gray-400">Baseline +25%</span>
           </div>
         </div>
 
-        <div className="bg-black p-4">
-          <span className="text-[10px] font-mono tracking-wider uppercase text-white/40 block mb-1">
+        <div className="bg-[#F7F4EE] rounded-[32px] p-6">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-gray-400 block mb-2">
             Fatigue Index (θ/β)
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-mono font-bold text-blue-400">
+            <span className="text-3xl font-bold text-[#36332E]">
               {fatigue}
             </span>
-            <span className="text-[10px] font-mono text-white/40">Optimal</span>
+            <span className="text-[10px] font-bold text-blue-500">Optimal</span>
           </div>
         </div>
       </div>
 
       {/* Tab 1: Interactive Kinematics + EEG Timeline Visualizer */}
       {activeTab === "timeline" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs font-mono text-white/60">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-white inline-block" /> Range of Motion (ROM °)
+        <div className="space-y-6">
+          <div className="flex items-center justify-between text-xs font-bold text-gray-400">
+            <div className="flex items-center gap-6">
+              <span className="flex items-center gap-2 uppercase tracking-wider">
+                <span className="w-2.5 h-2.5 bg-[#36332E] rounded-full inline-block" /> ROM °
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-emerald-400 inline-block" /> EEG Motor Intention (%)
+              <span className="flex items-center gap-2 uppercase tracking-wider">
+                <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full inline-block" /> EEG Intent %
               </span>
             </div>
-            <span className="text-white/40">Click repetition bar to seek video</span>
+            <span className="uppercase tracking-wider">Click repetition bar to seek video</span>
           </div>
 
-          <div className="border border-white/10 bg-black/80 p-5 space-y-4">
+          <div className="space-y-3">
             {timelinePoints.map((ev, idx) => {
               const repNum = ev.repetitionNumber || idx + 1;
               const rom = Math.round(ev.evidence?.rangeOfMotion || ev.evidence?.shoulderAngle || 70);
@@ -210,41 +210,41 @@ export function PerformanceChart({
                 <div
                   key={ev.id || idx}
                   onClick={() => onSeekTime && onSeekTime(ev.videoTimeMs || idx * 3500)}
-                  className="group cursor-pointer p-3 border border-white/10 hover:border-white/40 hover:bg-white/5 transition-all"
+                  className="group cursor-pointer p-5 bg-[#F7F4EE] rounded-[32px] border border-transparent hover:border-gray-200 hover:shadow-sm transition-all"
                 >
-                  <div className="flex items-center justify-between text-xs font-mono mb-2">
-                    <span className="font-bold text-white flex items-center gap-2">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider mb-3">
+                    <span className="text-[#36332E] flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
                       Repetition {repNum}
                     </span>
-                    <span className="text-white/40">Time: {timeSec}s</span>
+                    <span className="text-gray-400">Time: {timeSec}s</span>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {/* Kinematic ROM Bar */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-mono text-white/50 w-16">ROM</span>
-                      <div className="flex-1 bg-white/10 h-3 overflow-hidden">
+                    <div className="flex items-center gap-4">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 w-12">ROM</span>
+                      <div className="flex-1 bg-white rounded-full h-2 overflow-hidden border border-gray-100">
                         <div
-                          className="bg-white h-full transition-all"
+                          className="bg-[#36332E] h-full rounded-full transition-all"
                           style={{ width: `${Math.min(100, (rom / 120) * 100)}%` }}
                         />
                       </div>
-                      <span className="text-xs font-mono font-bold text-white w-12 text-right">
+                      <span className="text-xs font-bold text-[#36332E] w-12 text-right">
                         {rom}°
                       </span>
                     </div>
 
                     {/* EEG Motor Intention Bar */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-mono text-emerald-400 w-16">EEG Intent</span>
-                      <div className="flex-1 bg-white/10 h-3 overflow-hidden">
+                    <div className="flex items-center gap-4">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 w-12">Intent</span>
+                      <div className="flex-1 bg-white rounded-full h-2 overflow-hidden border border-gray-100">
                         <div
-                          className="bg-emerald-400 h-full transition-all"
+                          className="bg-emerald-400 h-full rounded-full transition-all"
                           style={{ width: `${repIntent}%` }}
                         />
                       </div>
-                      <span className="text-xs font-mono font-bold text-emerald-400 w-12 text-right">
+                      <span className="text-xs font-bold text-emerald-500 w-12 text-right">
                         {repIntent}%
                       </span>
                     </div>
@@ -258,86 +258,86 @@ export function PerformanceChart({
 
       {/* Tab 2: Full Frequency Spectrum Distribution */}
       {activeTab === "spectrum" && (
-        <div className="border border-white/10 bg-black/80 p-6 space-y-6">
-          <div className="text-xs font-mono text-white/50">
+        <div className="space-y-6">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Relative spectral power distribution computed via 250 Hz Discrete Fourier Transform (DFT).
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Delta */}
-            <div className="border border-white/10 p-4 bg-white/5">
-              <div className="flex justify-between items-center mb-2 font-mono">
-                <span className="text-xs font-bold text-white">Delta (0.5 – 4 Hz)</span>
-                <span className="text-sm font-bold text-white">{Math.round(bands.delta * 100)}%</span>
+            <div className="border border-gray-100 rounded-[32px] p-6 bg-[#F7F4EE]">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#36332E]">Delta (0.5–4 Hz)</span>
+                <span className="text-sm font-bold text-[#36332E]">{Math.round(bands.delta * 100)}%</span>
               </div>
-              <div className="w-full bg-white/10 h-2 mb-2">
-                <div className="bg-white/40 h-full" style={{ width: `${bands.delta * 100}%` }} />
+              <div className="w-full bg-white rounded-full h-2 overflow-hidden mb-3 border border-gray-100">
+                <div className="bg-gray-400 h-full rounded-full" style={{ width: `${bands.delta * 100}%` }} />
               </div>
-              <p className="text-[11px] text-white/50">Slow-wave background / Artifact baseline</p>
+              <p className="text-[10px] font-bold text-gray-400">Slow-wave background / Artifact baseline</p>
             </div>
 
             {/* Theta */}
-            <div className="border border-white/10 p-4 bg-white/5">
-              <div className="flex justify-between items-center mb-2 font-mono">
-                <span className="text-xs font-bold text-white">Theta (4 – 8 Hz)</span>
-                <span className="text-sm font-bold text-blue-400">{Math.round(bands.theta * 100)}%</span>
+            <div className="border border-gray-100 rounded-[32px] p-6 bg-[#F7F4EE]">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#36332E]">Theta (4–8 Hz)</span>
+                <span className="text-sm font-bold text-blue-500">{Math.round(bands.theta * 100)}%</span>
               </div>
-              <div className="w-full bg-white/10 h-2 mb-2">
-                <div className="bg-blue-400 h-full" style={{ width: `${bands.theta * 100}%` }} />
+              <div className="w-full bg-white rounded-full h-2 overflow-hidden mb-3 border border-gray-100">
+                <div className="bg-blue-400 h-full rounded-full" style={{ width: `${bands.theta * 100}%` }} />
               </div>
-              <p className="text-[11px] text-white/50">Cognitive workload and focused attention</p>
+              <p className="text-[10px] font-bold text-gray-400">Cognitive workload and focused attention</p>
             </div>
 
             {/* Alpha */}
-            <div className="border border-white/10 p-4 bg-white/5">
-              <div className="flex justify-between items-center mb-2 font-mono">
-                <span className="text-xs font-bold text-white">Alpha (8 – 12 Hz)</span>
-                <span className="text-sm font-bold text-white">{Math.round(bands.alpha * 100)}%</span>
+            <div className="border border-gray-100 rounded-[32px] p-6 bg-[#F7F4EE]">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#36332E]">Alpha (8–12 Hz)</span>
+                <span className="text-sm font-bold text-[#36332E]">{Math.round(bands.alpha * 100)}%</span>
               </div>
-              <div className="w-full bg-white/10 h-2 mb-2">
-                <div className="bg-white/60 h-full" style={{ width: `${bands.alpha * 100}%` }} />
+              <div className="w-full bg-white rounded-full h-2 overflow-hidden mb-3 border border-gray-100">
+                <div className="bg-gray-600 h-full rounded-full" style={{ width: `${bands.alpha * 100}%` }} />
               </div>
-              <p className="text-[11px] text-white/50">Cortical idling & relaxed wakefulness</p>
+              <p className="text-[10px] font-bold text-gray-400">Cortical idling & relaxed wakefulness</p>
             </div>
 
             {/* Mu (Sensorimotor) */}
-            <div className="border border-emerald-500/30 p-4 bg-emerald-500/10">
-              <div className="flex justify-between items-center mb-2 font-mono">
-                <span className="text-xs font-bold text-emerald-400">Mu Sensorimotor (8 – 13 Hz)</span>
-                <span className="text-sm font-bold text-emerald-300">{Math.round(bands.mu * 100)}%</span>
+            <div className="border border-emerald-100 rounded-[32px] p-6 bg-emerald-50/50">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Mu Sensorimotor (8–13 Hz)</span>
+                <span className="text-sm font-bold text-emerald-600">{Math.round(bands.mu * 100)}%</span>
               </div>
-              <div className="w-full bg-white/10 h-2 mb-2">
-                <div className="bg-emerald-400 h-full" style={{ width: `${bands.mu * 100}%` }} />
+              <div className="w-full bg-white rounded-full h-2 overflow-hidden mb-3 border border-emerald-100">
+                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${bands.mu * 100}%` }} />
               </div>
-              <p className="text-[11px] text-emerald-300/80 font-medium">
+              <p className="text-[10px] font-bold text-emerald-600/80">
                 ★ Desynchronizes when patient intends to move right arm
               </p>
             </div>
 
             {/* Beta */}
-            <div className="border border-blue-500/30 p-4 bg-blue-500/10">
-              <div className="flex justify-between items-center mb-2 font-mono">
-                <span className="text-xs font-bold text-blue-400">Beta (13 – 30 Hz)</span>
-                <span className="text-sm font-bold text-blue-300">{Math.round(bands.beta * 100)}%</span>
+            <div className="border border-blue-100 rounded-[32px] p-6 bg-blue-50/50">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Beta (13–30 Hz)</span>
+                <span className="text-sm font-bold text-blue-600">{Math.round(bands.beta * 100)}%</span>
               </div>
-              <div className="w-full bg-white/10 h-2 mb-2">
-                <div className="bg-blue-400 h-full" style={{ width: `${bands.beta * 100}%` }} />
+              <div className="w-full bg-white rounded-full h-2 overflow-hidden mb-3 border border-blue-100">
+                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${bands.beta * 100}%` }} />
               </div>
-              <p className="text-[11px] text-blue-300/80 font-medium">
+              <p className="text-[10px] font-bold text-blue-600/80">
                 Active motor command transmission & muscle recruitment
               </p>
             </div>
 
             {/* Gamma */}
-            <div className="border border-white/10 p-4 bg-white/5">
-              <div className="flex justify-between items-center mb-2 font-mono">
-                <span className="text-xs font-bold text-white">Gamma (30 – 45 Hz)</span>
-                <span className="text-sm font-bold text-white">{Math.round(bands.gamma * 100)}%</span>
+            <div className="border border-gray-100 rounded-[32px] p-6 bg-[#F7F4EE]">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#36332E]">Gamma (30–45 Hz)</span>
+                <span className="text-sm font-bold text-[#36332E]">{Math.round(bands.gamma * 100)}%</span>
               </div>
-              <div className="w-full bg-white/10 h-2 mb-2">
-                <div className="bg-purple-400 h-full" style={{ width: `${bands.gamma * 100}%` }} />
+              <div className="w-full bg-white rounded-full h-2 overflow-hidden mb-3 border border-gray-100">
+                <div className="bg-purple-500 h-full rounded-full" style={{ width: `${bands.gamma * 100}%` }} />
               </div>
-              <p className="text-[11px] text-white/50">Sensorimotor integration & rapid coordination</p>
+              <p className="text-[10px] font-bold text-gray-400">Sensorimotor integration & rapid coordination</p>
             </div>
           </div>
         </div>
@@ -345,19 +345,19 @@ export function PerformanceChart({
 
       {/* Tab 3: Clinical Insights & Neuro-Muscular Coupling Note */}
       {activeTab === "clinical" && (
-        <div className="border border-white/10 bg-black/80 p-6 space-y-4">
-          <h4 className="text-sm font-mono uppercase tracking-wider text-white font-bold">
+        <div className="bg-[#F7F4EE] rounded-[32px] p-8 space-y-4 border border-gray-100">
+          <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#36332E]">
             Physiological Interpretation
           </h4>
-          <div className="space-y-3 text-sm text-white/80 leading-relaxed font-sans">
+          <div className="space-y-4 text-sm text-gray-600 leading-relaxed font-sans">
             <p>
-              • <strong className="text-white">Motor Cortex Engagement:</strong> Sensorimotor Mu rhythm suppression reached <strong>{muErd}% ERD</strong> prior to arm elevation. This confirms intact upper motor neuron movement intention pathways.
+              • <strong className="text-[#36332E]">Motor Cortex Engagement:</strong> Sensorimotor Mu rhythm suppression reached <strong>{muErd}% ERD</strong> prior to arm elevation. This confirms intact upper motor neuron movement intention pathways.
             </p>
             <p>
-              • <strong className="text-white">Neuro-Motor Coupling:</strong> Intention-to-movement conversion was consistent across repetitions, demonstrating strong coordination between central motor planning and peripheral execution.
+              • <strong className="text-[#36332E]">Neuro-Motor Coupling:</strong> Intention-to-movement conversion was consistent across repetitions, demonstrating strong coordination between central motor planning and peripheral execution.
             </p>
             <p>
-              • <strong className="text-white">Central Fatigue:</strong> The Theta/Beta ratio ({fatigue}) indicated stable cognitive alertness with minimal mental exhaustion during this training protocol.
+              • <strong className="text-[#36332E]">Central Fatigue:</strong> The Theta/Beta ratio ({fatigue}) indicated stable cognitive alertness with minimal mental exhaustion during this training protocol.
             </p>
           </div>
         </div>

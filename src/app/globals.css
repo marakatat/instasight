@@ -34,11 +34,6 @@
 }
 
 /* ── Global resets ── */
-*,
-*::before,
-*::after {
-  border-radius: 0 !important;
-}
 
 body {
   background: var(--color-background);
@@ -125,13 +120,6 @@ code, pre, .font-mono {
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
-  --radius-4xl: 0px;
 }
 
 :root {
@@ -153,7 +141,7 @@ code, pre, .font-mono {
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.1);
   --ring: rgba(255, 255, 255, 0.3);
-  --radius: 0px;
+  --radius: 0.5rem;
 }
 
 @layer base {

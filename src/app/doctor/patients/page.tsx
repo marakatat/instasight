@@ -2,27 +2,27 @@ import Link from "next/link";
 
 export default function PatientsPage() {
   return (
-    <main className="min-h-[100dvh] bg-black text-white p-6 md:p-12">
-      <div className="max-w-[1200px] mx-auto">
+    <main className="min-h-[100dvh] bg-[#F7F4EE] p-6 md:p-12 font-sans">
+      <div className="max-w-[1440px] mx-auto bg-white rounded-[48px] shadow-sm border border-gray-100 p-8 md:p-12">
         <header className="mb-10">
           <Link
             href="/doctor/dashboard"
-            className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors inline-block mb-6"
+            className="text-[10px] font-bold tracking-widest uppercase text-gray-400 hover:text-[#36332E] transition-colors inline-block mb-6"
           >
             ← Doctor Dashboard
           </Link>
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-white">
+          <h1 className="text-3xl md:text-5xl font-serif font-bold text-[#36332E]">
             Patients
           </h1>
-          <p className="text-white/40 text-sm mt-2">
+          <p className="text-gray-500 text-sm mt-3">
             Roster of patients linked to your clinical cabinet.
           </p>
         </header>
 
-        <hr className="rule-light !mt-0 mb-10" />
+        <div className="border-t border-gray-100 mb-10" />
 
-        <div className="border border-white/15 p-12 text-center">
-          <p className="text-white/40 text-sm font-mono">
+        <div className="border border-gray-100 bg-[#F7F4EE] rounded-[40px] p-12 text-center">
+          <p className="text-gray-500 text-sm font-medium">
             Linked patients will appear here as they complete onboarding with your cabinet PIN.
           </p>
         </div>

@@ -22,13 +22,11 @@ export function SessionLog({
       return events.filter((e) => e.severity === "warning" || e.severity === "error");
     }
     if (filter === "BEST") {
-      // Mock "BEST" by finding reps with highest confidence or no warnings
       return events.filter((e) => e.severity === "info" || e.severity === "success");
     }
     return events;
   }, [events, filter]);
 
-  // When a new event is selected, we could scroll it into view if we want
   useEffect(() => {
     if (selectedEventId && scrollContainerRef.current) {
       const el = document.getElementById(`rep-card-${selectedEventId}`);
@@ -39,14 +37,14 @@ export function SessionLog({
   }, [selectedEventId]);
 
   return (
-    <div className="w-full bg-white border border-[#F7F4EE] rounded-[24px] p-6 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+    <div className="w-full bg-white rounded-[40px] p-8 border border-gray-100 shadow-sm font-sans">
       {/* Header & Filters */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h3 className="text-[#36332E] font-sans font-bold text-sm tracking-[0.35px] uppercase">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-[#36332E] font-bold text-xs tracking-widest uppercase">
           Session Log: Repetitions
         </h3>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-6">
           <FilterButton 
             active={filter === "ALL"} 
             label="ALL" 
@@ -68,48 +66,58 @@ export function SessionLog({
       {/* Horizontal Scroll Area */}
       <div 
         ref={scrollContainerRef}
-        className="flex items-center gap-4 overflow-x-auto pb-4 pt-2 -mx-2 px-2 scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent"
+        className="flex items-center gap-4 overflow-x-auto pb-4 pt-2 -mx-2 px-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
       >
         {filteredEvents.length === 0 ? (
-          <div className="text-stone-400 text-sm py-4">No repetitions match this filter.</div>
+          <div className="text-gray-400 text-sm py-4 w-full text-center">No repetitions match this filter.</div>
         ) : (
           filteredEvents.map((event) => {
             const isWarning = event.severity === "warning" || event.severity === "error";
             const isSelected = event.id === selectedEventId;
+            const isBest = event.confidence && event.confidence > 0.95 && !isWarning;
             
-            // Format duration
             const durationMs = event.evidence?.movementDurationMs || 0;
-            const durationSecs = (durationMs / 1000).toFixed(2);
+            const durationSecs = (durationMs / 1000).toFixed(1);
             
-            // Format angle
             const angle = event.evidence?.rangeOfMotion || event.evidence?.shoulderAngle || event.evidence?.kneeAngle || "--";
+
+            // Status Text
+            let statusText = "OPTIMAL";
+            let statusColor = "text-gray-400";
+            if (isWarning) {
+              statusText = event.reasonCodes?.[0] || "TOO FAST";
+              // uppercase the status text and replace underscores with spaces
+              statusText = statusText.replace(/_/g, " ").toUpperCase();
+              statusColor = "text-[#B86F68]";
+            } else if (isBest) {
+              statusText = "BEST FORM";
+              statusColor = "text-[#879783]";
+            }
 
             return (
               <button
                 key={event.id}
                 id={`rep-card-${event.id}`}
                 onClick={() => onEventClick(event)}
-                className={`flex-shrink-0 flex items-center justify-between w-[252px] h-[76px] px-4 rounded-[12px] border text-left transition-all duration-200 ${
-                  isWarning 
-                    ? "bg-[#FCF5F5] border-[#B86F68] shadow-[0_0_0_1px_rgba(254,243,199,0.5)]" 
-                    : "bg-[#F7F4EE] border-[#879783]"
-                } ${isSelected ? "ring-2 ring-offset-2 ring-[#36332E]" : "hover:-translate-y-1 hover:shadow-md"}`}
+                className={`flex-shrink-0 flex flex-col justify-between w-[260px] h-[84px] p-5 rounded-[24px] text-left transition-all duration-200 bg-[#FBF9F6] border border-[#EAE5D9] ${isSelected ? "shadow-md ring-1 ring-gray-300" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
               >
-                <div className="flex flex-col justify-center h-full">
-                  <span className={`text-[10px] font-bold uppercase tracking-[0.1em] mb-1 ${
-                    isWarning ? "text-[#B86F68]" : "text-[#879783]"
-                  }`}>
-                    Rep #{event.repetitionNumber?.toString().padStart(2, '0') || "00"}
-                  </span>
-                  <span className="text-[#36332E] font-bold text-sm tracking-[-0.1px]">
-                    {angle}° Angle
+                <div className="flex justify-between items-start w-full">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isWarning ? "bg-[#B86F68]" : "bg-[#879783]"}`}></span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      Rep #{event.repetitionNumber?.toString().padStart(2, '0') || "00"}
+                    </span>
+                  </div>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider ${statusColor} text-right max-w-[130px] truncate`} title={statusText}>
+                    {statusText}
                   </span>
                 </div>
                 
-                <div className="flex flex-col justify-end h-full py-1">
-                  <span className={`text-[10px] ${
-                    isWarning ? "text-[#B86F68]" : "text-[#879783]"
-                  }`}>
+                <div className="flex justify-between items-end w-full">
+                  <span className="text-[#36332E] font-bold text-sm">
+                    {angle}° Angle
+                  </span>
+                  <span className="text-[10px] font-medium text-gray-400">
                     {durationSecs}s
                   </span>
                 </div>
@@ -126,10 +134,10 @@ function FilterButton({ active, label, onClick }: { active: boolean; label: stri
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-[0.2px] transition-colors ${
+      className={`text-[10px] font-bold tracking-widest uppercase transition-colors ${
         active 
-          ? "bg-[#36332E] text-[#F7F4EE]" 
-          : "text-[#36332E]/60 hover:bg-[#F7F4EE]"
+          ? "text-[#36332E]" 
+          : "text-gray-300 hover:text-gray-400"
       }`}
     >
       {label}

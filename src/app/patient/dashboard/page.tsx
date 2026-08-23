@@ -68,58 +68,58 @@ export default async function PatientDashboardPage() {
   const topExercise = Object.entries(exerciseCounts).sort((a: any, b: any) => b[1] - a[1])[0];
 
   return (
-    <main className="min-h-[100dvh] bg-black text-white">
-      <div className="max-w-[1200px] mx-auto px-6 md:px-12 py-12">
+    <main className="min-h-[100dvh] bg-[#F7F4EE] p-6 md:p-12 font-sans">
+      <div className="max-w-[1440px] mx-auto bg-white rounded-[48px] shadow-sm border border-gray-100 p-8 md:p-12">
 
         {/* Header */}
-        <header className="mb-12">
+        <header className="mb-10">
           <Link
             href="/"
-            className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors inline-block mb-6"
+            className="text-[10px] font-bold tracking-widest uppercase text-gray-400 hover:text-[#36332E] transition-colors inline-block mb-6"
           >
             ← Instasight
           </Link>
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold text-white">
+              <h1 className="text-3xl md:text-5xl font-serif font-bold text-[#36332E]">
                 My Progress
               </h1>
-              <p className="text-white/40 text-sm mt-2">
+              <p className="text-gray-500 text-sm mt-3">
                 Your rehabilitation journey, powered by AI.
               </p>
             </div>
             <Link
               href="/patient/home"
-              className="inline-block bg-white text-black font-bold text-xs font-mono tracking-widest uppercase px-6 py-3 hover:bg-white/90 transition-colors whitespace-nowrap self-start sm:self-auto"
+              className="inline-block bg-[#36332E] text-white rounded-[24px] font-bold text-[11px] tracking-widest uppercase px-6 py-4 hover:bg-black transition-colors whitespace-nowrap self-start sm:self-auto"
             >
               + New Session
             </Link>
           </div>
         </header>
 
-        <hr className="border-white/10 mb-10" />
+        <div className="border-t border-gray-100 mb-10" />
 
         {/* Stats Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-white/10 mb-12">
-          <div className="bg-black p-6">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/30 block mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-12">
+          <div className="bg-[#F7F4EE] rounded-[32px] p-6 border border-gray-100">
+            <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block mb-2">
               Total Sessions
             </span>
-            <p className="font-mono text-4xl font-bold text-white">{totalSessions}</p>
+            <p className="font-mono text-3xl font-bold text-[#36332E]">{totalSessions}</p>
           </div>
-          <div className="bg-black p-6">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/30 block mb-2">
+          <div className="bg-[#F7F4EE] rounded-[32px] p-6 border border-gray-100">
+            <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block mb-2">
               Exercises Done
             </span>
-            <p className="font-mono text-4xl font-bold text-white">
+            <p className="font-mono text-3xl font-bold text-[#36332E]">
               {Object.keys(exerciseCounts).length}
             </p>
           </div>
-          <div className="bg-black p-6 col-span-2 sm:col-span-1">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/30 block mb-2">
+          <div className="bg-[#F7F4EE] rounded-[32px] p-6 border border-gray-100 col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block mb-2">
               Most Practiced
             </span>
-            <p className="font-serif text-xl font-bold text-white leading-tight">
+            <p className="font-serif text-xl font-bold text-[#36332E] leading-tight mt-1">
               {topExercise ? formatExerciseName(topExercise[0] as string) : "—"}
             </p>
           </div>
@@ -127,25 +127,25 @@ export default async function PatientDashboardPage() {
 
         {/* Sessions List */}
         {!sessions || sessions.length === 0 ? (
-          <div className="border border-white/10 p-16 text-center">
-            <ChartLine size={40} className="text-white/20 mx-auto mb-4" />
-            <h2 className="text-2xl font-serif text-white mb-3">No sessions yet</h2>
-            <p className="text-sm text-white/40 max-w-sm mx-auto mb-8">
+          <div className="border border-gray-100 bg-[#F7F4EE] rounded-[40px] p-12 md:p-16 text-center">
+            <ChartLine size={40} className="text-gray-300 mx-auto mb-4" />
+            <h2 className="text-2xl font-serif font-bold text-[#36332E] mb-3">No sessions yet</h2>
+            <p className="text-sm text-gray-500 max-w-sm mx-auto mb-8">
               Complete your first exercise session and your AI-powered progress report will appear here automatically.
             </p>
             <Link
               href="/patient/home"
-              className="inline-block bg-white text-black font-bold text-xs font-mono tracking-widest uppercase px-6 py-3 hover:bg-white/90 transition-colors"
+              className="inline-block bg-[#36332E] text-white rounded-[24px] font-bold text-[11px] tracking-widest uppercase px-6 py-4 hover:bg-black transition-colors"
             >
               Browse Exercises →
             </Link>
           </div>
         ) : (
           <>
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/30 block mb-4">
+            <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block mb-4">
               Session History
             </span>
-            <div className="flex flex-col gap-px bg-white/10">
+            <div className="flex flex-col gap-4">
               {sessions.map((session: any) => {
                 const eventCount = session.session_events?.[0]?.count ?? 0;
                 const summary = summaryBySession[session.id];
@@ -155,46 +155,46 @@ export default async function PatientDashboardPage() {
                   <Link
                     key={session.id}
                     href={`/patient/session-review/${session.id}`}
-                    className="group bg-black p-6 md:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.03] transition-all"
+                    className="group bg-[#F7F4EE] rounded-[32px] p-6 md:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:-translate-y-1 hover:shadow-md transition-all duration-300 border border-transparent hover:border-gray-200"
                   >
                     <div className="flex-1 min-w-0">
                       {/* Title row */}
                       <div className="flex items-center gap-3 mb-2">
-                        <CheckCircle size={16} className="text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors" weight="bold" />
-                        <h3 className="font-serif font-bold text-white text-lg leading-tight">
+                        <CheckCircle size={20} className="text-emerald-500 flex-shrink-0" weight="fill" />
+                        <h3 className="font-serif font-bold text-[#36332E] text-lg leading-tight">
                           {exerciseName}
                         </h3>
                       </div>
 
                       {/* Date + time */}
-                      <div className="flex items-center gap-3 pl-7 mb-3">
-                        <Clock size={12} className="text-white/25" />
-                        <span className="text-xs font-mono text-white/30">
+                      <div className="flex items-center gap-3 pl-8 mb-3">
+                        <Clock size={14} className="text-gray-400" />
+                        <span className="text-[11px] font-bold text-gray-500 tracking-wider">
                           {formatDate(session.completed_at)} at {formatTime(session.completed_at)}
                         </span>
-                        <span className="text-xs font-mono text-white/20">·</span>
-                        <span className="text-xs font-mono text-white/30">
+                        <span className="text-[11px] text-gray-300">·</span>
+                        <span className="text-[11px] font-bold text-gray-500 tracking-wider">
                           {eventCount} AI events
                         </span>
                       </div>
 
                       {/* Patient summary */}
                       {summary && (
-                        <p className="pl-7 text-sm text-white/50 leading-relaxed line-clamp-2 group-hover:text-white/70 transition-colors">
+                        <p className="pl-8 text-sm text-gray-600 leading-relaxed line-clamp-2">
                           {summary}
                         </p>
                       )}
                       {!summary && (
-                        <p className="pl-7 text-sm text-white/25 italic">
+                        <p className="pl-8 text-sm text-gray-400 italic">
                           Session complete.
                         </p>
                       )}
                     </div>
 
                     <ArrowRight
-                      size={18}
+                      size={20}
                       weight="bold"
-                      className="text-white/20 group-hover:text-white/60 group-hover:translate-x-1 transition-all flex-shrink-0"
+                      className="text-gray-400 group-hover:text-[#36332E] group-hover:translate-x-1 transition-all flex-shrink-0"
                     />
                   </Link>
                 );

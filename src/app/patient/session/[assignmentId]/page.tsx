@@ -5,7 +5,7 @@ export default async function SessionPage(props: { params: Promise<{ assignmentI
   const exerciseId = params.assignmentId;
   
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen bg-[#F7F4EE] font-sans">
       <ExerciseSession exerciseId={exerciseId} />
     </main>
   );
