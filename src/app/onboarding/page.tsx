@@ -15,10 +15,9 @@ export default function OnboardingPage() {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"doctor" | "patient" | null>(null);
   const [cabinetCode, setCabinetCode] = useState("");
-  const [deviceId, setDeviceId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const totalSteps = role === "patient" ? 4 : 2;
+  const totalSteps = role === "patient" ? 3 : 2;
 
   useEffect(() => {
     setMounted(true);
@@ -29,13 +28,11 @@ export default function OnboardingPage() {
 
   async function handleComplete(
     targetRole?: "doctor" | "patient",
-    skipPin: boolean = false,
-    customDeviceId?: string
+    skipPin: boolean = false
   ) {
     setLoading(true);
     setError(null);
     const selectedRole = targetRole || role;
-    const pairedDevId = (customDeviceId !== undefined ? customDeviceId : deviceId).trim();
 
     try {
       const {
@@ -50,20 +47,6 @@ export default function OnboardingPage() {
         full_name: fullName.trim(),
         role: selectedRole,
       };
-
-      if (pairedDevId.length > 0) {
-        // Verify unique deviceId
-        const { data: existingDev } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("device_id", pairedDevId)
-          .maybeSingle();
-
-        if (existingDev && existingDev.id !== user.id) {
-          throw new Error(`Device ID "${pairedDevId}" is already paired with another account.`);
-        }
-        updates.device_id = pairedDevId;
-      }
 
       if (selectedRole === "doctor") {
         updates.cabinet_code = Math.floor(
@@ -94,9 +77,6 @@ export default function OnboardingPage() {
         .eq("id", user.id);
 
       if (updateError) {
-        if (updateError.code === "23505") {
-          throw new Error(`Device ID "${pairedDevId}" is already registered to another account.`);
-        }
         throw updateError;
       }
 
@@ -251,77 +231,23 @@ export default function OnboardingPage() {
             />
 
             <button
-              onClick={() => {
-                setError(null);
-                setStep(4);
-              }}
-              className="w-full bg-white text-black py-4 font-bold text-sm tracking-wide hover:bg-white/90 transition-colors mb-4"
+              onClick={() => handleComplete("patient", !cabinetCode.trim())}
+              disabled={loading}
+              className="w-full bg-white text-black py-4 font-bold text-sm tracking-wide hover:bg-white/90 transition-colors disabled:opacity-40 mb-4"
             >
-              CONTINUE TO DEVICE SETUP →
+              {loading ? "SETTING UP..." : "FINISH SETUP →"}
             </button>
 
             <button
               type="button"
               onClick={() => {
                 setCabinetCode("");
-                setError(null);
-                setStep(4);
+                handleComplete("patient", true);
               }}
+              disabled={loading}
               className="w-full text-sm text-white/30 hover:text-white/60 transition-colors py-2"
             >
               I don't have a code right now
-            </button>
-          </div>
-        )}
-
-        {/* ── STEP 4: ESP32 DEVICE PAIRING ── */}
-        {step === 4 && role === "patient" && (
-          <div className="animate-in fade-in duration-300">
-            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 block mb-2">
-              Hardware Setup
-            </span>
-            <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">
-              Pair ESP32 Device
-            </h1>
-            <p className="text-white/40 text-sm mb-8">
-              Enter your unique ESP32 Device ID (e.g. <span className="font-mono text-white/70">instasight-A1B2</span>) displayed on your device serial log or web setup page.
-            </p>
-
-            {error && (
-              <div className="mb-6 p-4 border border-white/20 bg-white/5 text-white text-sm">
-                {error}
-              </div>
-            )}
-
-            <input
-              type="text"
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              placeholder="instasight-XXXX"
-              className="w-full bg-transparent border border-white/15 px-4 py-4 text-center text-xl font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-white/50 transition-colors mb-4 uppercase"
-            />
-            <p className="text-xs text-white/30 font-mono text-center mb-8">
-              Each physical device ID is globally unique and securely locked to your account.
-            </p>
-
-            <button
-              onClick={() => handleComplete("patient", !cabinetCode.trim())}
-              disabled={loading}
-              className="w-full bg-white text-black py-4 font-bold text-sm tracking-wide hover:bg-white/90 transition-colors disabled:opacity-40 mb-4"
-            >
-              {loading ? "SAVING & PAIRING..." : "FINISH SETUP →"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setDeviceId("");
-                handleComplete("patient", !cabinetCode.trim(), "");
-              }}
-              disabled={loading}
-              className="w-full text-sm text-white/30 hover:text-white/60 transition-colors py-2"
-            >
-              Pair hardware device later
             </button>
           </div>
         )}

@@ -1,7 +1,5 @@
-every device id will be unique
-every device id will be asociated with an account on next js
-
-before the start of the recording, at the position camera, you should still see the camera output to position it right
-
-
-remove all the fake telemetry 
+1: ESP32 runs local HTTP server (POST /start, POST /stop, GET /status, GET /eeg).
+2: No account binding required for ESP32; it transmits raw EEG locally to the phone device / python bridge.
+3: The phone / bridge connects locally to the ESP32 and posts EEG telemetry directly to the web app (/api/eeg).
+4: Before the start of the recording (at position camera step), live camera feed is active and visible for alignment.
+5: Real hardware ADS1115 sampling at 250 SPS with fallback to synthetic EEG.
