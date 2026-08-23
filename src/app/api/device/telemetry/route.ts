@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
   let isBridgeOnline = false;
   let isEsp32Online = false;
   let isAdsConnected = false;
-  let esp32Url = deviceStore.getEsp32Url(deviceId);
+  let esp32Url = "http://192.168.155.39";
 
   if (isActivelyStreaming) {
     // If active telemetry packets are flowing in right now

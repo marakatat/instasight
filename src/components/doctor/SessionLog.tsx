@@ -19,11 +19,11 @@ export function SessionLog({
 
   const filteredEvents = useMemo(() => {
     if (filter === "WARNINGS") {
-      return events.filter((e) => (e.severity as string) === "warning" || (e.severity as string) === "error");
+      return events.filter((e) => e.severity === "warning" || e.severity === "error");
     }
     if (filter === "BEST") {
       // Mock "BEST" by finding reps with highest confidence or no warnings
-      return events.filter((e) => (e.severity as string) === "info" || (e.severity as string) === "success");
+      return events.filter((e) => e.severity === "info" || e.severity === "success");
     }
     return events;
   }, [events, filter]);
@@ -74,7 +74,7 @@ export function SessionLog({
           <div className="text-stone-400 text-sm py-4">No repetitions match this filter.</div>
         ) : (
           filteredEvents.map((event) => {
-            const isWarning = (event.severity as string) === "warning" || (event.severity as string) === "error";
+            const isWarning = event.severity === "warning" || event.severity === "error";
             const isSelected = event.id === selectedEventId;
             
             // Format duration
@@ -82,7 +82,7 @@ export function SessionLog({
             const durationSecs = (durationMs / 1000).toFixed(2);
             
             // Format angle
-            const angle = event.evidence?.rangeOfMotion || event.evidence?.shoulderAngle || (event.evidence as any)?.kneeAngle || "--";
+            const angle = event.evidence?.rangeOfMotion || event.evidence?.shoulderAngle || event.evidence?.kneeAngle || "--";
 
             return (
               <button

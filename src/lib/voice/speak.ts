@@ -36,10 +36,9 @@ export async function speak(text: string) {
     const url = URL.createObjectURL(blob);
     
     // Check again before playing, in case another fetch finished first
-    const prev = currentAudio as HTMLAudioElement | null;
-    if (prev) {
-      prev.pause();
-      prev.currentTime = 0;
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
     }
 
     currentAudio = new Audio(url);

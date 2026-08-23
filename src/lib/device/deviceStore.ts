@@ -47,7 +47,6 @@ export interface EegSessionMetrics {
 
 export interface DeviceState {
   deviceId: string;
-  esp32Url: string;
   lastCommand: DeviceCommand;
   lastTelemetry: EegTelemetry | null;
   lastSeenMs: number;
@@ -71,7 +70,6 @@ export const deviceStore = {
     if (!state) {
       state = {
         deviceId,
-        esp32Url: process.env.ESP32_URL || "http://192.168.155.39",
         lastCommand: {
           command: "IDLE",
           deviceId,
@@ -88,21 +86,6 @@ export const deviceStore = {
       store.set(deviceId, state);
     }
     return state;
-  },
-
-  setEsp32Url(deviceId: string, url: string): string {
-    const state = this.getDeviceState(deviceId);
-    let normalized = url.trim();
-    if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
-      normalized = `http://${normalized}`;
-    }
-    normalized = normalized.replace(/\/+$/, "");
-    state.esp32Url = normalized;
-    return normalized;
-  },
-
-  getEsp32Url(deviceId: string): string {
-    return this.getDeviceState(deviceId).esp32Url;
   },
 
   setCommand(deviceId: string, command: "START_STREAM" | "STOP_STREAM" | "IDLE", sessionId?: string): DeviceCommand {
