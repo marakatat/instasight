@@ -26,9 +26,58 @@ export function ExerciseSession() {
   const sessionIdRef = useRef<string>(`session_${Date.now()}`);
   const AI_CALL_LIMIT = 5;
 
+  const [deviceId, setDeviceId] = useState<string>("esp32-01");
+  const [showPairModal, setShowPairModal] = useState(false);
+  const [pairInput, setPairInput] = useState("");
+  const [pairError, setPairError] = useState<string | null>(null);
+  const [isPairing, setIsPairing] = useState(false);
+
+  // Fetch authenticated patient's unique paired device
+  useEffect(() => {
+    async function loadPairedDevice() {
+      try {
+        const res = await fetch("/api/device/pair");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.deviceId) {
+            setDeviceId(data.deviceId);
+            setPairInput(data.deviceId);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch paired device:", err);
+      }
+    }
+    loadPairedDevice();
+  }, []);
+
+  const handlePairDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pairInput.trim()) return;
+    setIsPairing(true);
+    setPairError(null);
+    try {
+      const res = await fetch("/api/device/pair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId: pairInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to pair device");
+      }
+      setDeviceId(data.deviceId);
+      setShowPairModal(false);
+    } catch (err: any) {
+      setPairError(err.message || "Failed to pair device");
+    } finally {
+      setIsPairing(false);
+    }
+  };
+
   // Real-time EEG telemetry stream from physical ESP32
   const { telemetry, isHardwareOnline, startStream, stopStream } = useEegStream({
-    deviceId: "esp32-01",
+    deviceId,
     pollIntervalMs: 150,
   });
 
@@ -152,10 +201,15 @@ export function ExerciseSession() {
                 {isCameraReady ? "Camera Live" : "Initializing Camera"}
               </span>
               <span className="text-white/20">|</span>
-              <span className="flex items-center gap-1.5 text-white/70">
-                <span className={`inline-block w-1.5 h-1.5 ${isHardwareOnline ? "bg-white" : "bg-white/20"}`} />
-                {isHardwareOnline ? "ESP32 Linked" : "ESP32 Disconnected"}
-              </span>
+              <button
+                onClick={() => setShowPairModal(true)}
+                className="flex items-center gap-1.5 text-white/70 hover:text-white transition-colors cursor-pointer"
+                title="Click to pair or change ESP32 hardware device"
+              >
+                <span className={`inline-block w-1.5 h-1.5 ${isHardwareOnline ? "bg-emerald-400" : "bg-white/20"}`} />
+                <span>ESP32: <strong className="text-white font-mono">{deviceId}</strong> ({isHardwareOnline ? "Online" : "Offline"})</span>
+                <span className="text-[10px] text-white/40 underline ml-1">Edit</span>
+              </button>
             </div>
           </div>
 
@@ -329,6 +383,68 @@ export function ExerciseSession() {
           )}
         </div>
       </div>
+
+      {/* Hardware Pairing Modal */}
+      {showPairModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-black border border-white/20 p-8 max-w-md w-full shadow-2xl relative">
+            <button
+              onClick={() => setShowPairModal(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white font-mono text-sm"
+            >
+              ✕
+            </button>
+            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-white/40 block mb-2">
+              Hardware Configuration
+            </span>
+            <h2 className="text-2xl font-serif font-bold text-white mb-2">
+              Link ESP32 Device
+            </h2>
+            <p className="text-xs text-white/50 mb-6 font-mono leading-relaxed">
+              Enter the unique Device ID of your ESP32 board. Each device can only be associated with one account.
+            </p>
+
+            {pairError && (
+              <div className="mb-4 p-3 border border-red-500/40 bg-red-500/10 text-red-300 text-xs font-mono">
+                {pairError}
+              </div>
+            )}
+
+            <form onSubmit={handlePairDevice} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 mb-2">
+                  Device ID
+                </label>
+                <input
+                  type="text"
+                  value={pairInput}
+                  onChange={(e) => setPairInput(e.target.value)}
+                  placeholder="instasight-XXXX"
+                  required
+                  className="w-full bg-white/5 border border-white/20 px-4 py-3 font-mono text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white transition-colors"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPairModal(false)}
+                  className="flex-1 py-3 border border-white/20 text-white/60 hover:text-white text-xs font-mono tracking-wider transition-colors"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPairing || !pairInput.trim()}
+                  className="flex-1 py-3 bg-white text-black font-bold text-xs font-mono tracking-wider hover:bg-white/90 transition-colors disabled:opacity-40"
+                >
+                  {isPairing ? "LINKING..." : "SAVE & PAIR →"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

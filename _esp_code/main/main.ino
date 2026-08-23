@@ -341,22 +341,36 @@ void updateStatusLED() {
 }
 
 // =========================================================================
+//  Unique Hardware Device ID Generator
+// =========================================================================
+String getHardwareDeviceId() {
+  uint64_t chipid = ESP.getEfuseMac();
+  char devName[32];
+  snprintf(devName, sizeof(devName), "instasight-%04X%04X", (uint16_t)(chipid >> 32), (uint16_t)chipid);
+  return String(devName);
+}
+
+// =========================================================================
 //  Persistent Settings Management (NVS / Preferences)
 // =========================================================================
 void loadPreferences() {
+  String defaultDevId = getHardwareDeviceId();
   prefs.begin("instasight", true);  // read-only
   wifi_ssid = prefs.getString("ssid", "");
   wifi_password = prefs.getString("pass", "");
   server_host = prefs.getString("host", "192.168.1.100");
   server_port = prefs.getInt("port", 3000);
-  device_id = prefs.getString("dev_id", "esp32-demo-01");
+  device_id = prefs.getString("dev_id", defaultDevId);
+  if (device_id.length() == 0 || device_id == "esp32-demo-01") {
+    device_id = defaultDevId;
+  }
   prefs.end();
 
   Serial.println("\n[Config] Loaded from NVS Flash:");
   Serial.printf(" - Stored SSID:        '%s' (Length: %d)\n", wifi_ssid.c_str(), (int)wifi_ssid.length());
   Serial.printf(" - Stored Pass Length: %d chars\n", (int)wifi_password.length());
   Serial.printf(" - Next.js Server:     http://%s:%d\n", server_host.c_str(), server_port);
-  Serial.printf(" - Device ID:          %s\n", device_id.c_str());
+  Serial.printf(" - Unique Device ID:   %s\n", device_id.c_str());
 }
 
 void savePreferences(const String& ssid, const String& pass, const String& host, int port, const String& devId) {
@@ -577,7 +591,7 @@ void handleUpdateServer() {
   host.trim();
   dev.trim();
   if (port <= 0) port = 3000;
-  if (dev.length() == 0) dev = "esp32-demo-01";
+  if (dev.length() == 0) dev = getHardwareDeviceId();
   if (host.length() == 0) host = "192.168.1.100";
 
   saveServerPreferences(host, port, dev);
@@ -695,7 +709,7 @@ void handleSave() {
   dev.trim();
 
   if (port <= 0) port = 3000;
-  if (dev.length() == 0) dev = "esp32-demo-01";
+  if (dev.length() == 0) dev = getHardwareDeviceId();
 
   Serial.printf("\n[Save] Received Config - SSID: '%s', Host: '%s:%d', DevID: '%s'\n", ssid.c_str(), host.c_str(), port, dev.c_str());
   savePreferences(ssid, pass, host, port, dev);
