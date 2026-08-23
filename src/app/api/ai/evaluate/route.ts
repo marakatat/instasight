@@ -153,24 +153,26 @@ Respond ONLY in pure JSON, no markdown:
     });
 
     // 3. Call Gemini API
-    const model = "gemini-3.5-flash-lite";
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [
-          { role: "user", parts: [{ text: userMessage }] }
-        ]
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
+    try {
+      const model = "gemini-2.5-flash";
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [
+            { role: "user", parts: [{ text: userMessage }] }
+          ]
+        }),
+        signal: AbortSignal.timeout(15000)
+      });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
 
     const data = await response.json();
     let aiResult;
