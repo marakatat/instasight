@@ -42,6 +42,7 @@ export function CameraPoseView({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const hasAttemptedRecord = useRef(false);
+  const repHasErrorRef = useRef(false);
   
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -253,13 +254,21 @@ export function CameraPoseView({
               });
             }
 
-            if (result.landmarks[0]) {
+              if (result.landmarks[0]) {
               const exerciseDef = EXERCISE_LIBRARY[exerciseId] || EXERCISE_LIBRARY["right_arm_raise"];
               const newMetrics = exerciseDef.evaluator(
                 result.landmarks[0],
                 metricsRef.current.phase,
                 metricsRef.current.repetition
               );
+
+              if (newMetrics.error) {
+                repHasErrorRef.current = true;
+              }
+
+              if (newMetrics.phase === "idle") {
+                repHasErrorRef.current = false;
+              }
 
               if (mediaRecorderRef.current?.state === "recording" && 
                   metricsRef.current.phase === "holding" && 
@@ -269,13 +278,17 @@ export function CameraPoseView({
                   // Debounce reps: require at least 2500ms between consecutive repetitions
                   if (now - lastRepTimeRef.current > 2500) {
                     lastRepTimeRef.current = now;
-                    newMetrics.repetition += 1;
+                    
+                    const hadError = repHasErrorRef.current;
+                    if (!hadError) {
+                      newMetrics.repetition += 1;
+                    }
 
                     const { shouldTriggerAI, eegTelemetry: currentEeg, onAIEvent: handleEvent, onAIPromise: handlePromise } = callbacksRef.current;
                     
                     // Only trigger the heavy AI evaluation if there's an active form error, 
                     // or if it's a milestone repetition (every 5 reps) to offer encouragement.
-                    const isImportantRep = !!newMetrics.error || (newMetrics.repetition % 5 === 0);
+                    const isImportantRep = hadError || (newMetrics.repetition % 5 === 0);
                     
                     if (isImportantRep && (!shouldTriggerAI || shouldTriggerAI())) {
                       const aiPromise = fetch("/api/ai/evaluate", {
@@ -308,7 +321,6 @@ export function CameraPoseView({
                       .then((data: any) => {
                         const event = data.event || data;
                         if (event.error || !event.suggestion) return;
-                        speak(event.suggestion);
                         if (handleEvent) {
                           handleEvent(event as AIFeedbackEvent);
                         }

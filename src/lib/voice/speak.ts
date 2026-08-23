@@ -1,4 +1,5 @@
 let currentAudio: HTMLAudioElement | null = null;
+let currentAbortController: AbortController | null = null;
 
 export async function speak(text: string) {
   if (typeof window === "undefined") return;
@@ -10,11 +11,19 @@ export async function speak(text: string) {
     currentAudio = null;
   }
 
+  // Cancel any ongoing fetch
+  if (currentAbortController) {
+    currentAbortController.abort();
+  }
+  const abortController = new AbortController();
+  currentAbortController = abortController;
+
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
+      signal: abortController.signal,
     });
 
     if (!res.ok) {
@@ -25,6 +34,13 @@ export async function speak(text: string) {
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
+    
+    // Check again before playing, in case another fetch finished first
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+
     currentAudio = new Audio(url);
     
     currentAudio.onended = () => {

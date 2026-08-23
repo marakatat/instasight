@@ -51,9 +51,7 @@ function rightArmRaiseEvaluator(
   const elbowAngle    = angle(shoulder, elbow, wrist);
 
   let error: string | undefined;
-  if (shoulderAngle < 70 && previousPhase === "holding") {
-    error = "Try to raise your arm a little higher.";
-  } else if (elbowAngle < 120) {
+  if (elbowAngle < 120) {
     error = "Try to keep your arm more extended.";
   }
 
@@ -69,7 +67,7 @@ function rightArmRaiseEvaluator(
     rightShoulderAngle: shoulderAngle,
     rightElbowAngle: elbowAngle,
     movementScore: error ? 0.55 : 0.9,
-    rangeOfMotion: Math.round(shoulderAngle), // actual degrees, dataset p50=70°, p95=169°
+    rangeOfMotion: Math.round(shoulderAngle),
     error,
   };
 }
@@ -91,9 +89,7 @@ function leftArmRaiseEvaluator(
   const elbowAngle    = angle(shoulder, elbow, wrist);
 
   let error: string | undefined;
-  if (shoulderAngle < 70 && previousPhase === "holding") {
-    error = "Try to raise your arm a little higher.";
-  } else if (elbowAngle < 120) {
+  if (elbowAngle < 120) {
     error = "Try to keep your arm more extended.";
   }
 
@@ -109,7 +105,7 @@ function leftArmRaiseEvaluator(
     rightShoulderAngle: shoulderAngle,
     rightElbowAngle: elbowAngle,
     movementScore: error ? 0.55 : 0.9,
-    rangeOfMotion: Math.round(shoulderAngle), // actual degrees, dataset p50=70°, p95=169°
+    rangeOfMotion: Math.round(shoulderAngle),
     error,
   };
 }
@@ -126,17 +122,14 @@ function kneeExtensionEvaluator(
   const knee  = landmarks[POSE_LANDMARKS.RIGHT_KNEE];
   const ankle = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
 
-  // Dataset p50 for correct extension = 128°. Full extension ≈ 170°+
   const kneeAngle = angle(hip, knee, ankle);
 
   let error: string | undefined;
-  const isExtended  = kneeAngle >= 155;   // fully extended
-  const isBent      = kneeAngle <= 90;    // starting position (seated)
+  const isExtended  = kneeAngle >= 155;
+  const isBent      = kneeAngle <= 90;
 
-  if (!isExtended && previousPhase === "holding") {
-    error = "Try to fully straighten your leg.";
-  }
-
+  // We rely on phase transitions to measure completion; no artificial error here unless form is bad
+  
   let newPhase = previousPhase;
   if (isBent)                                                     newPhase = "idle";
   else if (isExtended)                                            newPhase = "holding";
@@ -147,7 +140,7 @@ function kneeExtensionEvaluator(
     timestamp: Date.now(), repetition,
     phase: newPhase,
     movementScore: error ? 0.6 : 0.92,
-    rangeOfMotion: Math.round(kneeAngle), // actual degrees, dataset correct p50=128°, full ext ≈170°+
+    rangeOfMotion: Math.round(kneeAngle),
     error,
   };
 }
@@ -165,18 +158,14 @@ function sitToStandEvaluator(
   const knee     = landmarks[POSE_LANDMARKS.RIGHT_KNEE];
   const ankle    = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
 
-  const hipAngle  = angle(shoulder, hip, knee);  // how open the hip is
+  const hipAngle  = angle(shoulder, hip, knee);
   const kneeAngle = angle(hip, knee, ankle);
 
-  // Standing = hipAngle > 150, kneeAngle > 160
   const isStanding = hipAngle > 150 && kneeAngle > 150;
   const isSeated   = hipAngle < 100 && kneeAngle < 110;
 
   let error: string | undefined;
-  if (!isStanding && previousPhase === "holding") {
-    error = "Try to stand up fully and straighten your hips.";
-  }
-
+  
   let newPhase = previousPhase;
   if (isSeated)                                                          newPhase = "idle";
   else if (isStanding)                                                   newPhase = "holding";
@@ -187,7 +176,7 @@ function sitToStandEvaluator(
     timestamp: Date.now(), repetition,
     phase: newPhase,
     movementScore: error ? 0.6 : 0.93,
-    rangeOfMotion: Math.round(hipAngle), // actual degrees, dataset correct p50=97°
+    rangeOfMotion: Math.round(hipAngle),
     error,
   };
 }
@@ -205,14 +194,10 @@ function squatEvaluator(
   const ankle = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
 
   const kneeAngle = angle(hip, knee, ankle);
-  // Standing ≈ 170°+, squat depth ≈ ≤100°
   const isStanding = kneeAngle > 160;
   const isDeep     = kneeAngle <= 100;
 
   let error: string | undefined;
-  if (!isDeep && previousPhase === "holding") {
-    error = "Go a little deeper into the squat.";
-  }
 
   let newPhase = previousPhase;
   if (isStanding)                                               newPhase = "idle";
@@ -224,7 +209,7 @@ function squatEvaluator(
     timestamp: Date.now(), repetition,
     phase: newPhase,
     movementScore: error ? 0.6 : 0.95,
-    rangeOfMotion: Math.round(180 - kneeAngle), // degrees of flexion from standing
+    rangeOfMotion: Math.round(180 - kneeAngle),
     error,
   };
 }
