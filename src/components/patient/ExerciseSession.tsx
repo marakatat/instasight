@@ -28,12 +28,32 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
   const aiCallCountRef = useRef(0);
   const sessionIdRef = useRef<string>(`session_${Date.now()}`);
   const AI_CALL_LIMIT = 5;
+  const [isEditingIp, setIsEditingIp] = useState(false);
+  const [ipInput, setIpInput] = useState("");
+  const [isConnectingIp, setIsConnectingIp] = useState(false);
+  const [ipFeedbackMsg, setIpFeedbackMsg] = useState<string | null>(null);
 
   const deviceId = "esp32-eeg-01";
 
   useEffect(() => {
     setIsMounted(true);
+    fetchCurrentIp();
   }, []);
+
+  const fetchCurrentIp = async () => {
+    try {
+      const res = await fetch(`/api/device/config?deviceId=${deviceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.esp32Url) {
+          const clean = data.esp32Url.replace(/^https?:\/\//, "");
+          setIpInput(clean);
+        }
+      }
+    } catch {
+      // fallback
+    }
+  };
 
   // Real-time EEG telemetry stream from physical ESP32 / Phone Bridge
   const { 
@@ -43,12 +63,55 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
     hardwareStatus, 
     statusMessage, 
     startStream, 
-    stopStream 
+    stopStream,
+    reconnect,
   } = useEegStream({
     deviceId,
     pollIntervalMs: 250,
     isPolling: sessionState === "setup" || sessionState === "active",
   });
+
+  const handleSaveIp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanIp = ipInput.trim();
+    if (!cleanIp) return;
+
+    setIsConnectingIp(true);
+    setIpFeedbackMsg("Connecting...");
+
+    try {
+      const res = await fetch("/api/device/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ esp32Url: cleanIp, deviceId }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        if (data.esp32Reachable) {
+          setIpFeedbackMsg("● Connected!");
+          setTimeout(() => {
+            setIsEditingIp(false);
+            setIpFeedbackMsg(null);
+            reconnect();
+          }, 800);
+        } else {
+          setIpFeedbackMsg("Saved. Connecting...");
+          setTimeout(() => {
+            setIsEditingIp(false);
+            setIpFeedbackMsg(null);
+            reconnect();
+          }, 1200);
+        }
+      } else {
+        setIpFeedbackMsg(data.error || "Failed to save IP");
+      }
+    } catch (err: any) {
+      setIpFeedbackMsg(err.message || "Network error");
+    } finally {
+      setIsConnectingIp(false);
+    }
+  };
 
 
   const hasUploadedRef = useRef(false);
@@ -214,39 +277,91 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
                 {isCameraReady ? "Camera Live" : "Initializing Camera"}
               </span>
               <span className="text-white/20">|</span>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block w-2 h-2 rounded-full transition-all duration-300 ${
-                    hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY"
-                      ? "bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                      : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY"
-                      ? "bg-amber-400 shadow-[0_0_8px_#fbbf24]"
-                      : "bg-red-500/80 shadow-[0_0_6px_#ef4444]"
-                  }`}
-                />
-                <span className="text-white/70">
-                  EEG:{" "}
-                  <strong
-                    className={`font-mono font-semibold ${
+              
+              {!isEditingIp ? (
+                <div 
+                  onClick={() => {
+                    setIsEditingIp(true);
+                    if (!ipInput) fetchCurrentIp();
+                  }}
+                  className="flex items-center gap-2 cursor-pointer group hover:opacity-90 transition-all"
+                  title="Click to change ESP32 IP address"
+                >
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full transition-all duration-300 ${
                       hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY"
-                        ? "text-emerald-400"
+                        ? "bg-emerald-400 shadow-[0_0_8px_#34d399]"
                         : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY"
-                        ? "text-amber-300"
-                        : "text-red-400"
+                        ? "bg-amber-400 shadow-[0_0_8px_#fbbf24]"
+                        : "bg-red-500/80 shadow-[0_0_6px_#ef4444]"
                     }`}
+                  />
+                  <span className="text-white/70">
+                    EEG:{" "}
+                    <strong
+                      className={`font-mono font-semibold group-hover:underline underline-offset-4 ${
+                        hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY"
+                          ? "text-emerald-400"
+                          : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY"
+                          ? "text-amber-300"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {hardwareStatus === "STREAMING_REAL"
+                        ? "Online (Real ADS1115 ADC)"
+                        : hardwareStatus === "HARDWARE_READY"
+                        ? "Online (ADS1115 Ready)"
+                        : hardwareStatus === "STREAMING_SIMULATED"
+                        ? "Streaming (Simulated Fallback)"
+                        : hardwareStatus === "SIMULATED_STANDBY"
+                        ? "Online (Simulation Mode • No ADC)"
+                        : "Offline (ESP32 Unreachable)"}
+                    </strong>
+                  </span>
+                  <span className="text-[10px] font-mono text-white/50 border border-white/20 px-1.5 py-0.5 rounded-xs group-hover:border-white/70 group-hover:text-white transition-colors flex items-center gap-1">
+                    <span>EDIT IP</span>
+                    <span className="text-[9px] text-white/30">✎</span>
+                  </span>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveIp} className="flex items-center gap-2 flex-wrap animate-in fade-in duration-150">
+                  <div className="flex items-center gap-1.5 bg-black border border-white/40 px-2.5 py-1">
+                    <span className="text-[10px] text-white/40 font-mono">IP:</span>
+                    <input
+                      type="text"
+                      value={ipInput}
+                      onChange={(e) => setIpInput(e.target.value)}
+                      placeholder="e.g. 192.168.1.50"
+                      autoFocus
+                      disabled={isConnectingIp}
+                      className="bg-transparent text-xs font-mono text-white outline-none w-36 sm:w-44 placeholder:text-white/30"
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setIsEditingIp(false);
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isConnectingIp || !ipInput.trim()}
+                    className="px-2.5 py-1 bg-white text-black text-[10px] font-mono font-bold tracking-wider uppercase hover:bg-white/90 disabled:opacity-40 transition-colors"
                   >
-                    {hardwareStatus === "STREAMING_REAL"
-                      ? "Online (Real ADS1115 ADC)"
-                      : hardwareStatus === "HARDWARE_READY"
-                      ? "Online (ADS1115 Ready)"
-                      : hardwareStatus === "STREAMING_SIMULATED"
-                      ? "Streaming (Simulated Fallback)"
-                      : hardwareStatus === "SIMULATED_STANDBY"
-                      ? "Online (Simulation Mode • No ADC)"
-                      : "Offline (ESP32 Unreachable)"}
-                  </strong>
-                </span>
-              </div>
+                    {isConnectingIp ? "SAVING..." : "CONNECT"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingIp(false);
+                      setIpFeedbackMsg(null);
+                    }}
+                    className="px-1.5 py-1 text-white/50 text-[10px] font-mono hover:text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                  {ipFeedbackMsg && (
+                    <span className="text-[10px] font-mono text-amber-300 ml-1">{ipFeedbackMsg}</span>
+                  )}
+                </form>
+              )}
             </div>
           </div>
 
@@ -332,15 +447,23 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
                 <div className="text-[10px] font-mono tracking-[0.2em] uppercase bg-black/60 px-3 py-1 text-white/70 border border-white/10 backdrop-blur-sm">
                   Position Upper Body & Right Arm
                 </div>
-                <div className="text-[10px] font-mono text-white/70 bg-black/80 px-3 py-1.5 border border-white/10 backdrop-blur-sm text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingIp(true);
+                    if (!ipInput) fetchCurrentIp();
+                  }}
+                  className="pointer-events-auto text-[10px] font-mono text-white/70 bg-black/80 px-3 py-1.5 border border-white/10 backdrop-blur-sm text-center cursor-pointer hover:border-white/40 transition-colors"
+                  title="Click to set ESP32 IP"
+                >
                   {hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY" ? (
                     <span className="text-emerald-400">● Physical ADS1115 EEG Active</span>
                   ) : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY" ? (
                     <span className="text-amber-300">▲ Simulation Fallback (No ADS1115 ADC)</span>
                   ) : (
-                    <span className="text-red-400">✕ ESP32 Offline • Check Power & Wi-Fi</span>
+                    <span className="text-red-400">✕ ESP32 Offline • Click to configure IP</span>
                   )}
-                </div>
+                </button>
               </div>
             </div>
           )}
