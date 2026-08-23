@@ -178,7 +178,6 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
           onAIEvent={handleAIEvent}
           onAIPromise={handleAIPromise}
           shouldTriggerAI={shouldTriggerAI}
-          eegTelemetry={telemetry}
           onLoaded={handleLoaded}
           liveFeedback={liveFeedback}
           onMetricsUpdate={setCurrentMetrics}

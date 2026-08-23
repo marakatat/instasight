@@ -4,7 +4,7 @@ import derivedBaselines from "@/lib/ai/derivedBaselines.json";
 import type { AIFeedbackEvent } from "@/types/rehabilitation";
 import { RateLimiter } from "@/lib/rate-limit";
 
-// Allow 5 AI requests per minute per IP for demo purposes
+// Allow 30 AI requests per minute per IP for demo purposes
 const aiRateLimiter = new RateLimiter(60000, 30);
 
 const InputSchema = z.object({
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     let body;
     try {
       body = await request.json();
-    } catch (e) {
+    } catch {
       console.error("Failed to parse request JSON");
       throw new Error("INVALID_JSON");
     }
@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
       input = InputSchema.parse(body);
     } catch (validationError) {
       console.error("Zod Validation Error:", validationError);
-      // We must preserve the raw input values for the fallback if validation fails
       input = body; 
       throw new Error("VALIDATION_ERROR");
     }
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
         evidence: {
           videoTimeMs: input.videoTimeMs,
           repetitionNumber: input.repetitionNumber,
-          exercisePhase: "complete", // simplified
+          exercisePhase: "complete",
           ...input.pose
         },
         confidence: 0.86,
@@ -104,21 +103,17 @@ export async function POST(request: NextRequest) {
     }
 
     // --- REAL AI LOGIC ---
-
-    // 1. Gather the "Doctor's Dataset" (Statistically-derived from real patient recordings)
-    // Map exercise IDs to dataset keys
     const exerciseKeyMap: Record<string, string> = {
       "right_arm_raise": "arm_raise",
       "left_arm_raise":  "arm_raise",
       "arm_raise":       "arm_raise",
       "knee_extension":  "knee_extension",
       "sit_to_stand":    "sit_to_stand",
-      "squat":           "sit_to_stand", // closest dataset proxy
+      "squat":           "sit_to_stand",
     };
     const datasetKey = exerciseKeyMap[input.exerciseId] || "arm_raise";
     const datasetBaseline = (derivedBaselines as any)[datasetKey];
 
-    // 2. Build Prompt — inject full statistical context from real CSV data
     const systemPrompt = `You are an AI exercise coach embedded in a physical therapy remote rehabilitation platform.
 You have access to REAL clinical population data derived from ${datasetBaseline?.correct_form ? Object.values(datasetBaseline.correct_form)[0] : {n:0}}+ patient recordings.
 
@@ -154,27 +149,24 @@ Respond ONLY in pure JSON, no markdown:
       eeg_telemetry: input.eeg,
     });
 
-    // 3. Call Gemini API
-    try {
-      const model = "gemini-2.5-flash";
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [
-            { role: "user", parts: [{ text: userMessage }] }
-          ]
-        }),
-        signal: AbortSignal.timeout(15000)
-      });
+    const model = "gemini-2.5-flash";
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [
+          { role: "user", parts: [{ text: userMessage }] }
+        ]
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
 
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status}`);
-      }
-
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
 
     const data = await response.json();
     let aiResult;
@@ -183,40 +175,40 @@ Respond ONLY in pure JSON, no markdown:
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No JSON object found in response");
       aiResult = JSON.parse(jsonMatch[0]);
-    } catch (e) {
+    } catch {
       console.error("Failed to parse AI response:", data.candidates?.[0]?.content?.parts?.[0]?.text || data);
       throw new Error("AI returned invalid JSON");
     }
 
-    // 4. Construct Final Event
-      const aiEvent: AIFeedbackEvent = {
-        id: crypto.randomUUID(),
-        sessionId: input.sessionId,
+    const aiEvent: AIFeedbackEvent = {
+      id: crypto.randomUUID(),
+      sessionId: input.sessionId,
+      videoTimeMs: input.videoTimeMs,
+      createdAt: new Date().toISOString(),
+      repetitionNumber: input.repetitionNumber,
+      suggestion: aiResult.suggestion || "Good job, keep it up.",
+      clinicalNote: aiResult.clinicalNote || undefined,
+      severity: aiResult.severity || "info",
+      reasonCodes: aiResult.reasonCodes || [],
+      evidence: {
         videoTimeMs: input.videoTimeMs,
-        createdAt: new Date().toISOString(),
         repetitionNumber: input.repetitionNumber,
-        suggestion: aiResult.suggestion || "Good job, keep it up.",
-        clinicalNote: aiResult.clinicalNote || undefined,
-        severity: aiResult.severity || "info",
-        reasonCodes: aiResult.reasonCodes || [],
-        evidence: {
-          videoTimeMs: input.videoTimeMs,
-          repetitionNumber: input.repetitionNumber,
-          exercisePhase: "complete",
-          ...input.pose
-        },
-        modelName: "gemini-3.5-flash-lite",
-        source: "ai",
-        therapistReviewed: false
-      };
+        exercisePhase: "complete",
+        ...input.pose
+      },
+      confidence: 0.92,
+      modelName: "gemini-2.5-flash",
+      modelVersion: "1.0",
+      source: "ai",
+      therapistReviewed: false
+    };
 
-      return NextResponse.json(aiEvent);
+    return NextResponse.json(aiEvent);
   } catch (error: any) {
     if (error.message === "RATE_LIMIT_EXCEEDED") {
       return NextResponse.json({ error: "Rate limit exceeded. Please wait." }, { status: 429 });
     }
 
-    // On any failure (parse error, OpenRouter error, etc) fall back to rule-based engine
     console.error("Evaluation Error (falling back to rules):", error);
     const fallback: AIFeedbackEvent = {
       id: crypto.randomUUID(),
