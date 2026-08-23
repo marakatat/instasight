@@ -5,7 +5,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 export type EegTelemetry = {
   deviceId: string;
   sequence: number;
-  source: "esp32_hardware" | "simulated" | "http_api";
+  source: "esp32_hardware" | "http_api";
   signalQuality: number;
   motorAttemptProbability: number;
   confidence: number;
@@ -48,21 +48,19 @@ export type CombinedFeedbackEvent = {
 interface UseEegStreamOptions {
   deviceId?: string;
   pollIntervalMs?: number;
-  allowSimulatedFallback?: boolean;
   onFeedback?: (feedback: CombinedFeedbackEvent) => void;
-  onTelemetry?: (telemetry: EegTelemetry) => void;
+  onTelemetry?: (telemetry: EegTelemetry | null) => void;
 }
 
 export function useEegStream(options: UseEegStreamOptions = {}) {
   const {
-    deviceId = "esp32-demo-01",
+    deviceId = "esp32-01",
     pollIntervalMs = 150,
-    allowSimulatedFallback = true,
     onFeedback,
     onTelemetry,
   } = options;
 
-  const [isConnected, setIsConnected] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
   const [isHardwareOnline, setIsHardwareOnline] = useState(false);
   const [telemetry, setTelemetry] = useState<EegTelemetry | null>(null);
   const [lastFeedback, setLastFeedback] = useState<CombinedFeedbackEvent | null>(null);
@@ -82,32 +80,42 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
 
     try {
       const res = await fetch(
-        `/api/device/telemetry?deviceId=${encodeURIComponent(deviceId)}&simulate=${allowSimulatedFallback ? "true" : "false"}`,
+        `/api/device/telemetry?deviceId=${encodeURIComponent(deviceId)}`,
         { cache: "no-store" }
       );
 
       if (res.ok) {
         const data = await res.json();
+        const online = !!data.isHardwareOnline;
         setIsConnected(true);
-        setIsHardwareOnline(!!data.isHardwareOnline);
+        setIsHardwareOnline(online);
         setError(null);
 
-        if (data.telemetry) {
+        if (online && data.telemetry) {
           setTelemetry(data.telemetry);
           if (onTelemetryRef.current) {
             onTelemetryRef.current(data.telemetry);
           }
+        } else {
+          setTelemetry(null);
+          if (onTelemetryRef.current) {
+            onTelemetryRef.current(null);
+          }
         }
       } else {
         setIsConnected(false);
+        setIsHardwareOnline(false);
+        setTelemetry(null);
       }
     } catch (err: any) {
-      // Non-blocking network catch
       setError(err?.message || "Failed to poll telemetry");
+      setIsConnected(false);
+      setIsHardwareOnline(false);
+      setTelemetry(null);
     } finally {
       isPollingRef.current = false;
     }
-  }, [deviceId, allowSimulatedFallback]);
+  }, [deviceId]);
 
   useEffect(() => {
     // Initial fetch

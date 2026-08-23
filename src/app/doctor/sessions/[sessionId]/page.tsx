@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { SessionVideoReview } from "@/components/doctor/SessionVideoReview";
 import type { AIFeedbackEvent } from "@/types/rehabilitation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function DoctorSessionPage({
 }) {
   const { sessionId } = await params;
 
-  // Fetch session record (for video URL)
+  // Fetch session record
   const { data: session } = await supabase
     .from("sessions")
     .select("*")
@@ -49,16 +50,29 @@ export default async function DoctorSessionPage({
   const videoUrl = session?.video_url || null;
 
   return (
-    <main className="min-h-[100dvh] bg-figma-base p-6 md:p-12 selection:bg-figma-teal selection:text-white">
+    <main className="min-h-[100dvh] bg-black p-6 md:p-12 text-white">
       <div className="max-w-[1600px] mx-auto">
-        <header className="mb-12">
-          <h1 className="text-4xl font-bold text-zinc-900 tracking-tight">Session Review</h1>
-          <p className="text-zinc-500 font-medium mt-2 flex items-center gap-2">
-            Exercise: <span className="font-bold text-zinc-900">Right Arm Raise</span> 
-            <span className="text-zinc-300">•</span>
-            Session ID: <code className="text-sm bg-zinc-200/50 text-zinc-600 px-2 py-0.5 rounded-md">{sessionId}</code>
-          </p>
+        <header className="mb-10">
+          <Link
+            href="/doctor/dashboard"
+            className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors inline-block mb-6"
+          >
+            ← Doctor Dashboard
+          </Link>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight text-white">
+                Session Review
+              </h1>
+              <p className="text-white/40 text-sm mt-2 font-mono">
+                Protocol: <span className="text-white">Right Arm Raise</span> 
+                {" "}• Session: <span className="text-white/70">{sessionId}</span>
+              </p>
+            </div>
+          </div>
         </header>
+
+        <hr className="rule-light !mt-0 mb-10" />
 
         {events.length > 0 || videoUrl ? (
           <SessionVideoReview 
@@ -67,10 +81,10 @@ export default async function DoctorSessionPage({
             doctorSummary={session?.doctor_summary}
           />
         ) : (
-          <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200/50 text-center shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)]">
-            <h2 className="text-2xl font-bold text-zinc-900 tracking-tight">No session data found.</h2>
-            <p className="text-zinc-500 font-medium mt-2">
-              Go to the Patient view, complete an exercise, then click "Stop & Send to Doctor".
+          <div className="border border-white/15 p-16 text-center">
+            <h2 className="text-2xl font-serif text-white mb-2">No session data recorded</h2>
+            <p className="text-white/40 text-sm max-w-md mx-auto">
+              This session does not contain recorded video or telemetry events.
             </p>
           </div>
         )}

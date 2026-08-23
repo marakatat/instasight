@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { initializePoseLandmarker } from "@/lib/pose/poseTracker";
 import { DrawingUtils, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { angle } from "@/lib/pose/geometry";
 import { evaluateArmRaise } from "@/lib/pose/exerciseRules";
 import { PoseMetrics, AIFeedbackEvent } from "@/types/rehabilitation";
-import { motion, AnimatePresence } from "framer-motion";
 import { EegTelemetry } from "@/lib/eeg/useEegStream";
 
 export function CameraPoseView({ 
+  isActive = true,
   isRecording, 
   onRecordingComplete,
   onAIEvent,
@@ -18,9 +18,10 @@ export function CameraPoseView({
   onLoaded,
   liveFeedback,
   eegTelemetry,
-  sessionId = "session_demo",
+  sessionId = "session_live",
   onMetricsUpdate
 }: {
+  isActive?: boolean;
   isRecording: boolean;
   onRecordingComplete: (blob: Blob) => void;
   onAIEvent: (event: AIFeedbackEvent) => void;
@@ -34,11 +35,11 @@ export function CameraPoseView({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
   const [isLoaded, setIsLoaded] = useState(false);
-  const [metrics, setMetrics] = useState<PoseMetrics | null>(null);
 
   const metricsRef = useRef<PoseMetrics>({
     timestamp: 0,
@@ -48,25 +49,92 @@ export function CameraPoseView({
     rangeOfMotion: 0,
   });
 
-  const latestPropsRef = useRef({ eegTelemetry, onAIEvent, onAIPromise, shouldTriggerAI });
-  useEffect(() => {
-    latestPropsRef.current = { eegTelemetry, onAIEvent, onAIPromise, shouldTriggerAI };
-  }, [eegTelemetry, onAIEvent, onAIPromise, shouldTriggerAI]);
+  const callbacksRef = useRef({
+    onLoaded,
+    onMetricsUpdate,
+    onAIEvent,
+    onAIPromise,
+    shouldTriggerAI,
+    onRecordingComplete,
+    eegTelemetry,
+  });
 
   useEffect(() => {
-    if (!mediaRecorderRef.current) return;
-    
-    if (isRecording && mediaRecorderRef.current.state === "inactive") {
-      console.log("Starting MediaRecorder...");
-      recordedChunksRef.current = [];
-      mediaRecorderRef.current.start();
-    } else if (!isRecording && mediaRecorderRef.current.state === "recording") {
-      console.log("Stopping MediaRecorder...");
-      mediaRecorderRef.current.stop();
+    callbacksRef.current = {
+      onLoaded,
+      onMetricsUpdate,
+      onAIEvent,
+      onAIPromise,
+      shouldTriggerAI,
+      onRecordingComplete,
+      eegTelemetry,
+    };
+  });
+
+  // MediaRecorder management — starts/stops cleanly without tearing down the stream
+  useEffect(() => {
+    const stream = mediaStreamRef.current;
+    if (!stream) return;
+
+    // Check if stream has active video tracks
+    const hasLiveTracks = stream.getVideoTracks().some(t => t.readyState === "live");
+    if (!hasLiveTracks) {
+      console.warn("MediaStream tracks are not live yet, skipping recording start.");
+      return;
     }
-  }, [isRecording, isLoaded]);
 
+    if (isRecording) {
+      recordedChunksRef.current = [];
+      try {
+        let mimeType = "";
+        if (typeof MediaRecorder !== "undefined") {
+          if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+            mimeType = "video/webm;codecs=vp9,opus";
+          } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
+            mimeType = "video/webm;codecs=vp8,opus";
+          } else if (MediaRecorder.isTypeSupported("video/webm")) {
+            mimeType = "video/webm";
+          } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+            mimeType = "video/mp4";
+          }
+        }
+
+        const options = mimeType ? { mimeType } : undefined;
+        const recorder = new MediaRecorder(stream, options);
+
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const type = recorder.mimeType || mimeType || "video/webm";
+          const blob = new Blob(recordedChunksRef.current, { type });
+          callbacksRef.current.onRecordingComplete(blob);
+          recordedChunksRef.current = [];
+        };
+
+        recorder.start(1000);
+        mediaRecorderRef.current = recorder;
+      } catch (err) {
+        console.error("Failed to start MediaRecorder:", err);
+      }
+    } else if (!isRecording && mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (err) {
+        console.error("Failed to stop MediaRecorder:", err);
+      }
+    }
+  }, [isRecording]);
+
+  // Primary Camera & Pose Tracking Setup — ONLY runs on mount / isActive toggle
   useEffect(() => {
+    if (!isActive) return;
+
     let animationFrameId: number;
     let lastVideoTime = -1;
     let poseLandmarker: any;
@@ -74,61 +142,46 @@ export function CameraPoseView({
     let isSubscribed = true;
 
     async function setupCameraAndMediaPipe() {
-      poseLandmarker = await initializePoseLandmarker();
+      try {
+        poseLandmarker = await initializePoseLandmarker();
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: "user" 
-        },
-      });
-      
-      if (!isSubscribed) {
-        stream.getTracks().forEach(t => t.stop());
-        return;
-      }
-      
-      localStream = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user" 
+          },
+          audio: false,
+        });
         
-        videoRef.current.onloadeddata = () => {
-          if (!isSubscribed) return;
-          setIsLoaded(true);
-          if (onLoaded) onLoaded();
-          predictWebcam();
-          
-          const recorder = new MediaRecorder(stream);
-          
-          recorder.start = function(timeslice) {
-             try {
-               MediaRecorder.prototype.start.call(this, timeslice || 1000);
-             } catch (e) {
-               console.error("Failed to start MediaRecorder:", e);
-             }
-          };
-
-          recorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-              recordedChunksRef.current.push(event.data);
-            }
-          };
-          recorder.onstop = () => {
-            const mimeType = mediaRecorderRef.current?.mimeType || "video/webm";
-            const blob = new Blob(recordedChunksRef.current, { type: mimeType });
-            onRecordingComplete(blob);
-            recordedChunksRef.current = [];
-          };
-          mediaRecorderRef.current = recorder;
-        };
-
-        try {
-          await videoRef.current.play();
-        } catch (err: any) {
-          if (err.name !== "AbortError") console.error("Error playing video:", err);
+        if (!isSubscribed) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
         }
+        
+        localStream = stream;
+        mediaStreamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          
+          videoRef.current.onloadeddata = () => {
+            if (!isSubscribed) return;
+            setIsLoaded(true);
+            if (callbacksRef.current.onLoaded) {
+              callbacksRef.current.onLoaded();
+            }
+            predictWebcam();
+          };
+
+          try {
+            await videoRef.current.play();
+          } catch (err: any) {
+            if (err.name !== "AbortError") console.error("Error playing video:", err);
+          }
+        }
+      } catch (err) {
+        console.error("Error setting up camera:", err);
       }
     }
 
@@ -166,10 +219,10 @@ export function CameraPoseView({
           if (result.landmarks && result.landmarks.length > 0) {
             const drawingUtils = new DrawingUtils(ctx);
             for (const landmark of result.landmarks) {
-              drawingUtils.drawLandmarks(landmark, { radius: 3, color: "#FF0000" });
+              drawingUtils.drawLandmarks(landmark, { radius: 2.5, color: "#FFFFFF" });
               drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS, {
-                color: "#00FF00",
-                lineWidth: 2,
+                color: "rgba(255, 255, 255, 0.6)",
+                lineWidth: 1.5,
               });
             }
 
@@ -195,7 +248,7 @@ export function CameraPoseView({
                   newMetrics.phase === "lowering") {
                   newMetrics.repetition += 1;
 
-                  const { shouldTriggerAI, eegTelemetry, onAIEvent, onAIPromise } = latestPropsRef.current;
+                  const { shouldTriggerAI, eegTelemetry: currentEeg, onAIEvent: handleEvent, onAIPromise: handlePromise } = callbacksRef.current;
                   if (!shouldTriggerAI || shouldTriggerAI()) {
                     const aiPromise = fetch("/api/ai/evaluate", {
                       method: "POST",
@@ -212,32 +265,35 @@ export function CameraPoseView({
                           rangeOfMotion: newMetrics.rangeOfMotion,
                           poseConfidence: 0.95
                         },
-                        eeg: {
-                          signalQuality: eegTelemetry?.signalQuality ?? 0.9,
-                          motorIntentScore: eegTelemetry?.motorAttemptProbability ?? 0.75
-                        }
+                        eeg: currentEeg ? {
+                          signalQuality: currentEeg.signalQuality,
+                          motorIntentScore: currentEeg.motorAttemptProbability
+                        } : undefined
                       })
                     })
                     .then(res => res.json())
                     .then((aiEvent: any) => {
                       if (aiEvent.error || !aiEvent.suggestion) return;
-                      window.speechSynthesis.cancel();
-                      window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
-                      if (onAIEvent) onAIEvent(aiEvent as AIFeedbackEvent);
+                      if (typeof window !== "undefined" && window.speechSynthesis) {
+                        window.speechSynthesis.cancel();
+                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
+                      }
+                      if (handleEvent) handleEvent(aiEvent as AIFeedbackEvent);
                     })
-                    .catch(err => console.error("AI Error:", err));
+                    .catch(err => console.error("AI Evaluation Error:", err));
 
-                    if (onAIPromise) onAIPromise(aiPromise as unknown as Promise<void>);
+                    if (handlePromise) handlePromise(aiPromise as unknown as Promise<void>);
                   }
               }
               metricsRef.current = newMetrics;
-              setMetrics(newMetrics);
-              if (onMetricsUpdate) onMetricsUpdate(newMetrics);
+              if (callbacksRef.current.onMetricsUpdate) {
+                callbacksRef.current.onMetricsUpdate(newMetrics);
+              }
             }
           }
           ctx.restore();
         } catch (e) {
-          // Ignore transient frame skips
+          // Frame skip
         }
       }
       animationFrameId = requestAnimationFrame(predictWebcam);
@@ -252,120 +308,47 @@ export function CameraPoseView({
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [sessionId]); // Only restart camera if sessionId changes
-
-  const simulateRepetition = () => {
-    if (!isRecording) {
-      alert("Please click 'Start exercise' before simulating!");
-      return;
-    }
-    
-    const newRep = metricsRef.current.repetition + 1;
-    
-    setMetrics(prev => prev ? { ...prev, repetition: newRep, phase: "lowering" } : null);
-    metricsRef.current.repetition = newRep;
-    metricsRef.current.phase = "lowering";
-    if (onMetricsUpdate) onMetricsUpdate(metricsRef.current);
-
-    fetch("/api/ai/evaluate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: sessionId || "session_demo_sim",
-        videoTimeMs: 2500, 
-        repetitionNumber: newRep,
-        exerciseId: "right_arm_raise",
-        pose: {
-          shoulderAngle: 62,
-          elbowAngle: 150,
-          movementDurationMs: 3000,
-          rangeOfMotion: 62,
-          poseConfidence: 0.99
-        },
-        eeg: {
-          signalQuality: eegTelemetry?.signalQuality ?? 0.9,
-          motorIntentScore: eegTelemetry?.motorAttemptProbability ?? 0.8
-        }
-      })
-    })
-    .then(res => res.json())
-    .then((aiEvent: AIFeedbackEvent) => {
-      if (aiEvent.suggestion) {
-         window.speechSynthesis.cancel();
-         window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
-      }
-      onAIEvent(aiEvent);
-    })
-    .catch(err => console.error("AI Error:", err));
-  };
+  }, [isActive]); // Strictly depends on isActive only
 
   return (
-    <div className="relative w-full h-full flex flex-col">
-      <div className="relative flex-1 bg-black overflow-hidden group rounded-b-[2.5rem] min-h-[460px]">
+    <div className="relative w-full h-full flex flex-col bg-black">
+      <div className="relative flex-1 bg-black overflow-hidden group min-h-[460px]">
         {!isLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
-            <div className="w-8 h-8 border-4 border-teal-400 border-t-transparent rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+            <div className="w-6 h-6 border-2 border-white border-t-transparent animate-spin" />
           </div>
         )}
         
-        <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover opacity-80" playsInline muted />
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full object-cover" />
+        <video 
+          ref={videoRef} 
+          className="absolute inset-0 h-full w-full object-cover opacity-90" 
+          playsInline 
+          muted 
+        />
+        <canvas 
+          ref={canvasRef} 
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none" 
+        />
         
         {isRecording && (
-          <div className="absolute top-6 right-8 flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg border border-red-500 z-50">
-            <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
-            <span className="font-bold tracking-widest text-sm">REC</span>
+          <div className="absolute top-6 right-8 flex items-center gap-2 bg-white text-black px-3 py-1.5 text-xs font-mono tracking-widest uppercase z-50">
+            <div className="w-2 h-2 bg-red-600 animate-pulse" />
+            <span>RECORDING</span>
           </div>
         )}
 
-        <AnimatePresence>
-          {liveFeedback && (
-            <motion.div 
-              initial={{ y: -20, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: -20, opacity: 0, scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="absolute top-6 left-1/2 -translate-x-1/2 z-50 min-w-[400px]"
-            >
-              <div className={`px-6 py-4 rounded-3xl border backdrop-blur-2xl shadow-2xl flex items-center gap-5 ${
-                liveFeedback.severity === "warning"
-                  ? "bg-figma-mustard/10 border-figma-mustard/30"
-                  : liveFeedback.severity === "success"
-                  ? "bg-figma-teal/10 border-figma-teal/30"
-                  : "bg-white/10 border-white/20"
-              }`}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 ${
-                  liveFeedback.severity === "warning" ? "bg-figma-mustard/20 text-figma-mustard" : 
-                  liveFeedback.severity === "success" ? "bg-figma-teal/20 text-figma-teal" : 
-                  "bg-white/20 text-white"
-                }`}>
-                  {liveFeedback.severity === "warning" ? "⚠️" : liveFeedback.severity === "success" ? "✅" : "💡"}
-                </div>
-                <div className="flex flex-col">
-                  <span className={`text-xs font-bold uppercase tracking-wider mb-1 ${
-                    liveFeedback.severity === "warning" ? "text-figma-mustard" : 
-                    liveFeedback.severity === "success" ? "text-figma-teal" : 
-                    "text-zinc-300"
-                  }`}>
-                    Clinical AI Feedback
-                  </span>
-                  <p className="text-lg font-medium leading-tight text-white drop-shadow-sm">
-                    {liveFeedback.suggestion}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <div className="flex justify-between items-center absolute bottom-6 right-6 z-40">
-        <button 
-          onClick={simulateRepetition}
-          className="text-xs bg-black/40 backdrop-blur-md hover:bg-black/60 text-white font-bold px-4 py-2 rounded-xl shadow-sm border border-white/10 transition-colors"
-        >
-          🛠 Simulate Rep
-        </button>
+        {liveFeedback && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 min-w-[320px] max-w-md animate-in fade-in duration-200">
+            <div className="px-5 py-3 border border-white/20 bg-black/95 text-white backdrop-blur-md">
+              <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/50 block mb-1">
+                Clinical AI Feedback
+              </span>
+              <p className="text-sm font-medium leading-snug">
+                {liveFeedback.suggestion}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

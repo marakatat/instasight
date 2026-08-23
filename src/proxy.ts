@@ -6,16 +6,22 @@ export async function proxy(request: NextRequest) {
     request,
   });
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nuuyqasscxesqsmqcyjr.supabase.co";
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51dXlxYXNzY3hlc3FzbXFjeWpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MzExNTAsImV4cCI6MjEwMzAwNzE1MH0.i_t0q7wzUsN9RdR2mu8bqBSo4LIU8MLrwCnOrmArKTE";
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
           });
@@ -31,25 +37,27 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/doctor') || request.nextUrl.pathname.startsWith('/patient');
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith('/doctor') ||
+    request.nextUrl.pathname.startsWith('/patient') ||
+    request.nextUrl.pathname.startsWith('/onboarding');
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login');
 
   if (isProtectedRoute && !user) {
     // Redirect unauthenticated users to login
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/login';
+    return NextResponse.redirect(redirectUrl);
   }
 
   if (isAuthRoute && user) {
     // Redirect authenticated users away from login
-    // We will let the home page or a layout handle role-based redirecting for now
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/';
+    return NextResponse.redirect(redirectUrl);
   }
 
-  // Adding some security headers to the middleware response as well
+  // Security headers
   supabaseResponse.headers.set('x-xss-protection', '1; mode=block');
   supabaseResponse.headers.set('x-content-type-options', 'nosniff');
 
@@ -58,13 +66,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

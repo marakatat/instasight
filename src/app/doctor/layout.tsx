@@ -4,7 +4,7 @@ export default function DoctorLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-black text-white min-h-screen">
       {children}
     </div>
   );

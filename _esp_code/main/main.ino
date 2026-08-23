@@ -113,30 +113,30 @@ const char* getAuthModeName(wifi_auth_mode_t authMode) {
 
 const char* getDisconnectReasonText(uint8_t reason) {
   switch (reason) {
-    case 1:   return "UNSPECIFIED (General Wi-Fi connection failure)";
-    case 2:   return "AUTH_EXPIRE (Authentication expired by router)";
-    case 3:   return "AUTH_LEAVE (Deauthenticated - sending station leaving)";
-    case 4:   return "ASSOC_EXPIRE (Disassociated due to inactivity)";
-    case 5:   return "ASSOC_TOOMANY (Disassociated - router reached max client limit)";
-    case 6:   return "NOT_AUTHED (Class 2 frame received from non-authenticated STA)";
-    case 7:   return "NOT_ASSOCED (Class 3 frame received from non-associated STA)";
-    case 8:   return "ASSOC_LEAVE (Disassociated - station leaving)";
-    case 9:   return "ASSOC_NOT_AUTHED (Association requested before auth)";
-    case 10:  return "DISASSOC_PWRCAP_BAD (Power capability info rejected by router)";
-    case 11:  return "DISASSOC_SUPCHAN_BAD (Supported channels unacceptable)";
-    case 12:  return "IE_INVALID (Information element invalid)";
-    case 13:  return "MIC_FAILURE (Michael MIC failure on WPA packet)";
-    case 14:  return "4WAY_HANDSHAKE_TIMEOUT (WPA 4-Way Handshake timed out - WRONG PASSWORD or interference)";
-    case 15:  return "GROUP_KEY_UPDATE_TIMEOUT (Group key handshake timeout)";
-    case 16:  return "IE_IN_4WAY_DIFFERS (Information element differs in 4-way handshake)";
-    case 17:  return "GROUP_CIPHER_INVALID (Group cipher suite invalid)";
-    case 18:  return "PAIRWISE_CIPHER_INVALID (Pairwise cipher suite invalid)";
-    case 19:  return "AKMP_INVALID (AKM suite invalid)";
-    case 20:  return "UNSUPP_RSN_IE_VERSION (Unsupported RSN IE version)";
-    case 21:  return "INVALID_RSN_IE_CAP (Invalid RSN IE capabilities)";
-    case 22:  return "802_1X_AUTH_FAILED (802.1X authentication failed)";
-    case 23:  return "CIPHER_SUITE_REJECTED (Cipher suite rejected by router)";
-    case 24:  return "BEACON_TIMEOUT (Lost router beacon packets - weak signal or router moved)";
+    case 1: return "UNSPECIFIED (General Wi-Fi connection failure)";
+    case 2: return "AUTH_EXPIRE (Authentication expired by router)";
+    case 3: return "AUTH_LEAVE (Deauthenticated - sending station leaving)";
+    case 4: return "ASSOC_EXPIRE (Disassociated due to inactivity)";
+    case 5: return "ASSOC_TOOMANY (Disassociated - router reached max client limit)";
+    case 6: return "NOT_AUTHED (Class 2 frame received from non-authenticated STA)";
+    case 7: return "NOT_ASSOCED (Class 3 frame received from non-associated STA)";
+    case 8: return "ASSOC_LEAVE (Disassociated - station leaving)";
+    case 9: return "ASSOC_NOT_AUTHED (Association requested before auth)";
+    case 10: return "DISASSOC_PWRCAP_BAD (Power capability info rejected by router)";
+    case 11: return "DISASSOC_SUPCHAN_BAD (Supported channels unacceptable)";
+    case 12: return "IE_INVALID (Information element invalid)";
+    case 13: return "MIC_FAILURE (Michael MIC failure on WPA packet)";
+    case 14: return "4WAY_HANDSHAKE_TIMEOUT (WPA 4-Way Handshake timed out - WRONG PASSWORD or interference)";
+    case 15: return "GROUP_KEY_UPDATE_TIMEOUT (Group key handshake timeout)";
+    case 16: return "IE_IN_4WAY_DIFFERS (Information element differs in 4-way handshake)";
+    case 17: return "GROUP_CIPHER_INVALID (Group cipher suite invalid)";
+    case 18: return "PAIRWISE_CIPHER_INVALID (Pairwise cipher suite invalid)";
+    case 19: return "AKMP_INVALID (AKM suite invalid)";
+    case 20: return "UNSUPP_RSN_IE_VERSION (Unsupported RSN IE version)";
+    case 21: return "INVALID_RSN_IE_CAP (Invalid RSN IE capabilities)";
+    case 22: return "802_1X_AUTH_FAILED (802.1X authentication failed)";
+    case 23: return "CIPHER_SUITE_REJECTED (Cipher suite rejected by router)";
+    case 24: return "BEACON_TIMEOUT (Lost router beacon packets - weak signal or router moved)";
     case 200: return "BEACON_TIMEOUT (Lost beacons - check distance to router)";
     case 201: return "NO_AP_FOUND (Target SSID not found - check 2.4GHz band / range / SSID spelling)";
     case 202: return "AUTH_FAIL (Authentication failed - WRONG PASSWORD)";
@@ -145,20 +145,20 @@ const char* getDisconnectReasonText(uint8_t reason) {
     case 205: return "CONNECTION_FAIL (Failed to establish link with router)";
     case 206: return "AP_TSF_RESET (AP TSF reset)";
     case 207: return "ROAMING (Station roaming)";
-    default:  return "UNKNOWN_REASON_CODE";
+    default: return "UNKNOWN_REASON_CODE";
   }
 }
 
 const char* getWiFiStatusText(wl_status_t status) {
   switch (status) {
-    case WL_IDLE_STATUS:     return "IDLE_STATUS (In transition)";
-    case WL_NO_SSID_AVAIL:   return "NO_SSID_AVAIL (Target SSID not reachable)";
-    case WL_SCAN_COMPLETED:  return "SCAN_COMPLETED";
-    case WL_CONNECTED:       return "CONNECTED";
-    case WL_CONNECT_FAILED:  return "CONNECT_FAILED (Connection failed)";
+    case WL_IDLE_STATUS: return "IDLE_STATUS (In transition)";
+    case WL_NO_SSID_AVAIL: return "NO_SSID_AVAIL (Target SSID not reachable)";
+    case WL_SCAN_COMPLETED: return "SCAN_COMPLETED";
+    case WL_CONNECTED: return "CONNECTED";
+    case WL_CONNECT_FAILED: return "CONNECT_FAILED (Connection failed)";
     case WL_CONNECTION_LOST: return "CONNECTION_LOST (Link lost)";
-    case WL_DISCONNECTED:    return "DISCONNECTED";
-    default:                 return "UNKNOWN_STATUS";
+    case WL_DISCONNECTED: return "DISCONNECTED";
+    default: return "UNKNOWN_STATUS";
   }
 }
 
@@ -184,15 +184,16 @@ void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
       Serial.printf("             DNS:     %s\n", WiFi.dnsIP().toString().c_str());
       connection_failed_flag = false;
       break;
-    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
-      uint8_t reason = info.wifi_sta_disconnected.reason;
-      last_disconnect_reason = reason;
-      last_disconnect_desc = getDisconnectReasonText(reason);
-      connection_failed_flag = true;
-      Serial.printf("\n[WiFi Event] ❌ Disconnected from AP (Reason Code: %d)\n", reason);
-      Serial.printf("             Diagnosis: %s\n", last_disconnect_desc.c_str());
-      break;
-    }
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      {
+        uint8_t reason = info.wifi_sta_disconnected.reason;
+        last_disconnect_reason = reason;
+        last_disconnect_desc = getDisconnectReasonText(reason);
+        connection_failed_flag = true;
+        Serial.printf("\n[WiFi Event] ❌ Disconnected from AP (Reason Code: %d)\n", reason);
+        Serial.printf("             Diagnosis: %s\n", last_disconnect_desc.c_str());
+        break;
+      }
     case ARDUINO_EVENT_WIFI_AP_START:
       Serial.printf("[WiFi Event] 📡 SoftAP Active (SSID: '%s', IP: %s)\n", AP_SSID, apIP.toString().c_str());
       break;
@@ -455,7 +456,7 @@ String getConnectionFailureHtml() {
       else if (last_target_rssi >= -70) signalQuality = "Good (-60..-70 dBm)";
       else if (last_target_rssi >= -80) signalQuality = "Weak (-70..-80 dBm)";
       else signalQuality = "Very Weak (< -80 dBm)";
-      
+
       scanText = "Detected in 2.4GHz scan (" + String(last_target_rssi) + " dBm &middot; " + signalQuality + ")";
     } else {
       scanText = "<span style='color:#f87171;font-weight:600;'>NOT detected in 2.4GHz scan</span> (Check 2.4GHz band / range)";
@@ -467,12 +468,15 @@ String getConnectionFailureHtml() {
                 "<span class='error-icon'>⚠️</span>"
                 "<div>"
                 "<div class='error-title'>Wi-Fi Connection Could Not Be Established</div>"
-                "<div class='error-subtitle'>ESP32 failed to connect to &lsquo;<strong>" + (target.length() > 0 ? target : "(None)") + "</strong>&rsquo; and switched to Setup AP mode.</div>"
-                "</div>"
-                "</div>"
-                "<div class='error-details'>"
-                "<div class='detail-row'><span class='detail-label'>Failure Code:</span> <span class='badge-code'>" + reasonBadge + "</span></div>"
-                "<div class='detail-row'><span class='detail-label'>Reason:</span> <span class='detail-value'>" + reasonTitle + "</span></div>";
+                "<div class='error-subtitle'>ESP32 failed to connect to &lsquo;<strong>"
+                + (target.length() > 0 ? target : "(None)") + "</strong>&rsquo; and switched to Setup AP mode.</div>"
+                                                              "</div>"
+                                                              "</div>"
+                                                              "<div class='error-details'>"
+                                                              "<div class='detail-row'><span class='detail-label'>Failure Code:</span> <span class='badge-code'>"
+                + reasonBadge + "</span></div>"
+                                "<div class='detail-row'><span class='detail-label'>Reason:</span> <span class='detail-value'>"
+                + reasonTitle + "</span></div>";
 
   if (reasonExplanation.length() > 0) {
     html += "<div class='detail-row'><span class='detail-label'>Diagnosis:</span> <span class='detail-value'>" + reasonExplanation + "</span></div>";
@@ -483,8 +487,9 @@ String getConnectionFailureHtml() {
   }
 
   html += "</div>"
-          "<div class='error-tip'>" + actionTip + "</div>"
-          "</div>";
+          "<div class='error-tip'>"
+          + actionTip + "</div>"
+                        "</div>";
 
   return html;
 }
@@ -494,8 +499,8 @@ String getConnectionFailureHtml() {
 // =========================================================================
 String getStationConfigPageHtml() {
   String statusBadge = is_streaming
-    ? "<span style='background:#065f46;color:#6ee7b7;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:11px;'>🟢 STREAMING</span>"
-    : "<span style='background:#334155;color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:11px;'>⚪ IDLE (Waiting)</span>";
+                         ? "<span style='background:#065f46;color:#6ee7b7;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:11px;'>🟢 STREAMING</span>"
+                         : "<span style='background:#334155;color:#94a3b8;padding:3px 8px;border-radius:6px;font-weight:bold;font-size:11px;'>⚪ IDLE (Waiting)</span>";
 
   String html = "<!DOCTYPE html><html lang='en'><head>"
                 "<meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>"
@@ -517,35 +522,45 @@ String getStationConfigPageHtml() {
                 ".endpoints { margin-top: 18px; padding-top: 14px; border-top: 1px solid #334155; font-size: 11px; color: #94a3b8; word-break: break-all; }"
                 "</style></head><body>"
                 "<div class='card'>"
-                "<h1><span>🧠 InstaSight Target</span> " + statusBadge + "</h1>"
-                "<div class='status-box'>"
-                "<div class='status-row'><span>Wi-Fi Network:</span> <strong style='color:#38bdf8;'>" + wifi_ssid + "</strong></div>"
-                "<div class='status-row'><span>ESP32 IP:</span> <strong style='color:#4ade80;'>" + WiFi.localIP().toString() + "</strong></div>"
-                "<div class='status-row'><span>Signal Strength:</span> <span>" + String(WiFi.RSSI()) + " dBm</span></div>"
-                "<div class='status-row'><span>ADS1115 Sensor:</span> <span>" + (ads_available ? "✅ 250 SPS Active" : "⚠️ Disconnected") + "</span></div>"
-                "</div>"
-                "<form action='/update_server' method='POST'>"
-                "<label>Next.js Server Host / LAN IP</label>"
-                "<input type='text' name='server_host' value='" + server_host + "' placeholder='e.g. 192.168.1.100' required>"
-                "<div class='hint'>IP address of the computer running Next.js</div>"
-                "<div class='row'>"
-                "<div style='flex:1;'>"
-                "<label>Port</label>"
-                "<input type='number' name='server_port' value='" + String(server_port) + "' required>"
-                "</div>"
-                "<div style='flex:2;'>"
-                "<label>Device ID</label>"
-                "<input type='text' name='device_id' value='" + device_id + "' required>"
-                "</div>"
-                "</div>"
-                "<button type='submit'>Save Target URL</button>"
-                "</form>"
-                "<div class='endpoints'>"
-                "<strong>Active Target Endpoints:</strong><br>"
-                "&bull; Commands: <span style='color:#38bdf8;'>http://" + server_host + ":" + String(server_port) + "/api/device/commands?deviceId=" + device_id + "</span><br>"
-                "&bull; Telemetry: <span style='color:#38bdf8;'>http://" + server_host + ":" + String(server_port) + "/api/device/telemetry</span>"
-                "</div>"
-                "</div></body></html>";
+                "<h1><span>🧠 InstaSight Target</span> "
+                + statusBadge + "</h1>"
+                                "<div class='status-box'>"
+                                "<div class='status-row'><span>Wi-Fi Network:</span> <strong style='color:#38bdf8;'>"
+                + wifi_ssid + "</strong></div>"
+                              "<div class='status-row'><span>ESP32 IP:</span> <strong style='color:#4ade80;'>"
+                + WiFi.localIP().toString() + "</strong></div>"
+                                              "<div class='status-row'><span>Signal Strength:</span> <span>"
+                + String(WiFi.RSSI()) + " dBm</span></div>"
+                                        "<div class='status-row'><span>ADS1115 Sensor:</span> <span>"
+                + (ads_available ? "✅ 250 SPS Active" : "⚠️ Disconnected") + "</span></div>"
+                                                                                 "</div>"
+                                                                                 "<form action='/update_server' method='POST'>"
+                                                                                 "<label>Next.js Server Host / LAN IP</label>"
+                                                                                 "<input type='text' name='server_host' value='"
+                + server_host + "' placeholder='e.g. 192.168.1.100' required>"
+                                "<div class='hint'>IP address of the computer running Next.js</div>"
+                                "<div class='row'>"
+                                "<div style='flex:1;'>"
+                                "<label>Port</label>"
+                                "<input type='number' name='server_port' value='"
+                + String(server_port) + "' required>"
+                                        "</div>"
+                                        "<div style='flex:2;'>"
+                                        "<label>Device ID</label>"
+                                        "<input type='text' name='device_id' value='"
+                + device_id + "' required>"
+                              "</div>"
+                              "</div>"
+                              "<button type='submit'>Save Target URL</button>"
+                              "</form>"
+                              "<div class='endpoints'>"
+                              "<strong>Active Target Endpoints:</strong><br>"
+                              "&bull; Commands: <span style='color:#38bdf8;'>http://"
+                + server_host + ":" + String(server_port) + "/api/device/commands?deviceId=" + device_id + "</span><br>"
+                                                                                                           "&bull; Telemetry: <span style='color:#38bdf8;'>http://"
+                + server_host + ":" + String(server_port) + "/api/device/telemetry</span>"
+                                                            "</div>"
+                                                            "</div></body></html>";
 
   return html;
 }
@@ -574,10 +589,12 @@ void handleUpdateServer() {
                     "</style></head><body>"
                     "<div class='badge'>✅ Target URL Updated!</div>"
                     "<h2>Now listening to Next.js at:</h2>"
-                    "<p style='color:#38bdf8;font-size:18px;font-family:monospace;'>http://" + host + ":" + String(port) + "</p>"
-                    "<p style='color:#94a3b8;font-size:13px;'>Device ID: <strong>" + dev + "</strong></p>"
-                    "<p style='color:#64748b;font-size:12px;margin-top:20px;'>Redirecting back...</p>"
-                    "</body></html>";
+                    "<p style='color:#38bdf8;font-size:18px;font-family:monospace;'>http://"
+                    + host + ":" + String(port) + "</p>"
+                                                  "<p style='color:#94a3b8;font-size:13px;'>Device ID: <strong>"
+                    + dev + "</strong></p>"
+                            "<p style='color:#64748b;font-size:12px;margin-top:20px;'>Redirecting back...</p>"
+                            "</body></html>";
 
   server.send(200, "text/html", response);
 }
@@ -625,36 +642,35 @@ String getSetupPageHtml() {
                 "<div class='card'>"
                 "<h1>🧠 InstaSight ESP32</h1>"
                 "<p>Configure Wi-Fi & Next.js Server connection for direct HTTP EEG streaming.</p>"
-                + getConnectionFailureHtml() +
-                "<form action='/save' method='POST'>"
-                "<label>Select Nearby 2.4GHz Network</label>"
-                "<select name='ssid_select' id='ssid_select' onchange='document.getElementById(\"ssid\").value = this.value;'>"
-                "<option value=''>-- Select Network --</option>"
+                + getConnectionFailureHtml() + "<form action='/save' method='POST'>"
+                                               "<label>Select Nearby 2.4GHz Network</label>"
+                                               "<select name='ssid_select' id='ssid_select' onchange='document.getElementById(\"ssid\").value = this.value;'>"
+                                               "<option value=''>-- Select Network --</option>"
                 + networkOptions + "</select>"
-                "<label>Network SSID (or type manually)</label>"
-                "<input type='text' id='ssid' name='ssid' value='"
+                                   "<label>Network SSID (or type manually)</label>"
+                                   "<input type='text' id='ssid' name='ssid' value='"
                 + wifi_ssid + "' placeholder='Network Name'>"
-                "<label>Wi-Fi Password</label>"
-                "<input type='password' name='password' value='"
+                              "<label>Wi-Fi Password</label>"
+                              "<input type='password' name='password' value='"
                 + wifi_password + "' placeholder='Password (leave empty if open)'>"
-                "<label>Next.js Web Server Host / LAN IP</label>"
-                "<input type='text' name='server_host' value='"
+                                  "<label>Next.js Web Server Host / LAN IP</label>"
+                                  "<input type='text' name='server_host' value='"
                 + server_host + "' placeholder='e.g. 192.168.1.100' required>"
-                "<div class='row'>"
-                "<div style='flex:1;'>"
-                "<label>Port</label>"
-                "<input type='number' name='server_port' value='"
+                                "<div class='row'>"
+                                "<div style='flex:1;'>"
+                                "<label>Port</label>"
+                                "<input type='number' name='server_port' value='"
                 + String(server_port) + "' placeholder='3000' required>"
-                "</div>"
-                "<div style='flex:2;'>"
-                "<label>Device ID</label>"
-                "<input type='text' name='device_id' value='"
+                                        "</div>"
+                                        "<div style='flex:2;'>"
+                                        "<label>Device ID</label>"
+                                        "<input type='text' name='device_id' value='"
                 + device_id + "' required>"
-                "</div>"
-                "</div>"
-                "<div class='note'>⚠️ ESP32 only supports <strong>2.4 GHz</strong> Wi-Fi networks (not 5 GHz).</div>"
-                "<button type='submit'>Save & Connect</button>"
-                "</form></div></body></html>";
+                              "</div>"
+                              "</div>"
+                              "<div class='note'>⚠️ ESP32 only supports <strong>2.4 GHz</strong> Wi-Fi networks (not 5 GHz).</div>"
+                              "<button type='submit'>Save & Connect</button>"
+                              "</form></div></body></html>";
 
   return html;
 }
@@ -691,8 +707,8 @@ void handleSave() {
                     "<h2>✅ Settings Saved!</h2>"
                     "<p>Connecting to <strong>"
                     + (ssid.length() > 0 ? ssid : "(None)") + "</strong> and linking to Next.js at <strong>http://" + host + ":" + String(port) + "</strong>...</p>"
-                    "<p>ESP32 is restarting now.</p>"
-                    "</body></html>";
+                                                                                                                                                  "<p>ESP32 is restarting now.</p>"
+                                                                                                                                                  "</body></html>";
 
   server.send(200, "text/html", response);
   delay(1500);
@@ -897,7 +913,7 @@ void setup() {
     WiFi.disconnect(true);
     delay(150);
     WiFi.mode(WIFI_STA);
-    WiFi.setSleep(false); // Prevents modem sleep connection drops
+    WiFi.setSleep(false);  // Prevents modem sleep connection drops
     WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
 
     unsigned long startAttempt = millis();

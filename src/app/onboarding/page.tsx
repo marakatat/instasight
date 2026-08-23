@@ -2,63 +2,86 @@
 
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { Stethoscope, User, ArrowRight, UserCircle, Key } from "@phosphor-icons/react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const supabase = createClient();
+  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  
-  // Form State
+
+  // Form state
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<'doctor' | 'patient' | null>(null);
+  const [role, setRole] = useState<"doctor" | "patient" | null>(null);
   const [cabinetCode, setCabinetCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  async function handleComplete() {
+  const totalSteps = 3;
+
+  useEffect(() => {
+    setMounted(true);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) router.replace("/login");
+    });
+  }, [router, supabase]);
+
+  async function handleComplete(
+    targetRole?: "doctor" | "patient",
+    skipPin: boolean = false
+  ) {
     setLoading(true);
     setError(null);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user found");
+    const selectedRole = targetRole || role;
 
-      let updates: any = { 
-        full_name: fullName,
-        role: role 
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        throw new Error("No active session found. Please sign in.");
+      }
+
+      let updates: any = {
+        full_name: fullName.trim(),
+        role: selectedRole,
       };
 
-      if (role === 'doctor') {
-        // Generate a random 4-digit PIN for the doctor
-        updates.cabinet_code = Math.floor(1000 + Math.random() * 9000).toString();
-      } else if (role === 'patient' && cabinetCode) {
-        // Link patient to doctor
-        const { data: doctor } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('cabinet_code', cabinetCode)
-          .single();
-          
-        if (doctor) {
-          updates.doctor_id = doctor.id;
-        } else {
-          throw new Error("Invalid Doctor PIN. Please check the code and try again.");
+      if (selectedRole === "doctor") {
+        updates.cabinet_code = Math.floor(
+          1000 + Math.random() * 9000
+        ).toString();
+      } else if (
+        selectedRole === "patient" &&
+        !skipPin &&
+        cabinetCode.trim().length > 0
+      ) {
+        const { data: doctor, error: docError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("cabinet_code", cabinetCode.trim())
+          .maybeSingle();
+
+        if (docError || !doctor) {
+          throw new Error(
+            "Invalid Doctor PIN. Please check the code and try again."
+          );
         }
+        updates.doctor_id = doctor.id;
       }
 
       const { error: updateError } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update(updates)
-        .eq('id', user.id);
+        .eq("id", user.id);
 
       if (updateError) throw updateError;
 
-      if (role === 'doctor') {
-        router.push('/doctor/dashboard');
+      if (selectedRole === "doctor") {
+        router.push("/doctor/dashboard");
       } else {
-        router.push('/patient/session/demo123'); // Demo fallback
+        router.push("/patient/session/right_arm_raise");
       }
     } catch (err: any) {
       console.error("Error completing onboarding:", err);
@@ -67,143 +90,162 @@ export default function OnboardingPage() {
     }
   }
 
+  if (!mounted) {
+    return (
+      <main className="min-h-[100dvh] bg-black flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-white border-t-transparent animate-spin" />
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-[100dvh] bg-figma-base flex items-center justify-center p-6 md:p-12 selection:bg-figma-teal selection:text-white overflow-hidden">
-      <div className="max-w-4xl w-full z-10 relative">
-        <AnimatePresence mode="wait">
-          
-          {/* STEP 1: NAME */}
-          {step === 1 && (
-            <motion.div 
-              key="step1"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="max-w-md mx-auto bg-white rounded-[2.5rem] p-10 border border-slate-200/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] text-center"
+    <main className="min-h-[100dvh] bg-black flex items-center justify-center px-6 md:px-12">
+      <div className="max-w-2xl w-full">
+
+        {/* ── Step indicator ── */}
+        <div className="mb-12 flex items-center gap-4">
+          <span className="text-xs font-mono tracking-[0.2em] text-white/40">
+            {String(step).padStart(2, "0")} / {String(totalSteps).padStart(2, "0")}
+          </span>
+          <div className="flex-1 h-px bg-white/10 relative">
+            <div
+              className="absolute top-0 left-0 h-px bg-white transition-all duration-500"
+              style={{ width: `${(step / totalSteps) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* ── STEP 1: NAME ── */}
+        {step === 1 && (
+          <div className="animate-in fade-in duration-300">
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">
+              Welcome
+            </h1>
+            <p className="text-white/40 text-sm mb-10">
+              What should we call you?
+            </p>
+
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="First & Last Name"
+              className="w-full bg-transparent border border-white/15 px-4 py-4 text-white text-lg placeholder:text-white/20 focus:outline-none focus:border-white/50 transition-colors mb-8"
+            />
+
+            <button
+              onClick={() => setStep(2)}
+              disabled={fullName.trim().length < 2}
+              suppressHydrationWarning
+              className="w-full bg-white text-black py-4 font-bold text-sm tracking-wide hover:bg-white/90 transition-colors disabled:opacity-30"
             >
-              <div className="w-16 h-16 bg-zinc-50 border border-zinc-200 rounded-2xl flex items-center justify-center mx-auto mb-8">
-                <UserCircle size={32} weight="duotone" className="text-figma-teal" />
-              </div>
-              <h1 className="text-3xl font-bold text-zinc-900 tracking-tight mb-2">Welcome!</h1>
-              <p className="text-zinc-500 font-medium mb-8">What should we call you?</p>
-              
-              <input 
-                type="text" 
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="First & Last Name"
-                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-4 px-4 text-center text-lg font-medium text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-figma-teal/50 focus:border-figma-teal transition-all mb-6"
-              />
+              CONTINUE →
+            </button>
+          </div>
+        )}
 
-              <button 
-                onClick={() => setStep(2)}
-                disabled={fullName.trim().length < 2}
-                className="w-full bg-zinc-900 hover:bg-black text-white rounded-xl py-4 font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+        {/* ── STEP 2: ROLE ── */}
+        {step === 2 && (
+          <div className="animate-in fade-in duration-300">
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">
+              Your Role
+            </h1>
+            <p className="text-white/40 text-sm mb-12">
+              Select your account type to personalize your experience.
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-px bg-white/10">
+              <button
+                onClick={() => {
+                  setRole("patient");
+                  setStep(3);
+                }}
+                className="group bg-black p-8 md:p-10 text-left hover:bg-white hover:text-black transition-all duration-300 border border-white/10"
               >
-                Continue <ArrowRight size={20} weight="bold" />
+                <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 group-hover:text-black/40 transition-colors">
+                  Patient
+                </span>
+                <h2 className="text-2xl font-serif mt-4 group-hover:text-black transition-colors">
+                  I am a Patient
+                </h2>
+                <p className="text-sm text-white/40 group-hover:text-black/60 mt-3 leading-relaxed transition-colors">
+                  Perform exercises at home with real-time AI feedback and share
+                  progress with your physical therapist.
+                </p>
+                <span className="inline-block mt-6 text-sm text-white/50 group-hover:text-black group-hover:translate-x-1 transition-all">
+                  Continue →
+                </span>
               </button>
-            </motion.div>
-          )}
 
-          {/* STEP 2: ROLE */}
-          {step === 2 && (
-            <motion.div 
-              key="step2"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              <button
+                onClick={() => {
+                  setRole("doctor");
+                  handleComplete("doctor", true);
+                }}
+                className="group bg-white text-black p-8 md:p-10 text-left hover:bg-black hover:text-white transition-all duration-300 border border-white/10"
+              >
+                <span className="text-xs font-mono tracking-[0.2em] uppercase text-black/40 group-hover:text-white/40 transition-colors">
+                  Clinician
+                </span>
+                <h2 className="text-2xl font-serif mt-4 group-hover:text-white transition-colors">
+                  I am a Doctor
+                </h2>
+                <p className="text-sm text-black/60 group-hover:text-white/40 mt-3 leading-relaxed transition-colors">
+                  Review patient kinematics, view AI-assisted telemetry, and
+                  manage recovery programs remotely.
+                </p>
+                <span className="inline-block mt-6 text-sm text-black/50 group-hover:text-white group-hover:translate-x-1 transition-all">
+                  {loading ? "Setting up..." : "Continue →"}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: PATIENT PIN ── */}
+        {step === 3 && role === "patient" && (
+          <div className="animate-in fade-in duration-300">
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">
+              Doctor's PIN
+            </h1>
+            <p className="text-white/40 text-sm mb-10">
+              If your doctor gave you a 4-digit code, enter it below to link
+              your accounts.
+            </p>
+
+            {error && (
+              <div className="mb-6 p-4 border border-white/20 bg-white/5 text-white text-sm">
+                {error}
+              </div>
+            )}
+
+            <input
+              type="text"
+              maxLength={4}
+              value={cabinetCode}
+              onChange={(e) => setCabinetCode(e.target.value)}
+              placeholder="0000"
+              className="w-full bg-transparent border border-white/15 px-4 py-4 text-center text-3xl tracking-[1em] font-mono text-white placeholder:text-white/15 focus:outline-none focus:border-white/50 transition-colors mb-8"
+            />
+
+            <button
+              onClick={() => handleComplete("patient", false)}
+              disabled={loading}
+              className="w-full bg-white text-black py-4 font-bold text-sm tracking-wide hover:bg-white/90 transition-colors disabled:opacity-40 mb-4"
             >
-              <div className="text-center mb-12">
-                <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 tracking-tight mb-4">How will you use Telerehab?</h1>
-                <p className="text-lg text-zinc-500 font-medium">Select your account type to personalize your experience.</p>
-              </div>
+              {loading ? "LINKING..." : "COMPLETE SETUP →"}
+            </button>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <button 
-                  onClick={() => { setRole('patient'); setStep(3); }}
-                  className="group bg-white rounded-[2.5rem] p-10 border border-slate-200/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] hover:border-figma-teal/30 hover:shadow-lg transition-all duration-300 text-left"
-                >
-                  <div className="w-16 h-16 bg-figma-teal/10 rounded-2xl flex items-center justify-center mb-8 border border-figma-teal/20">
-                    <User size={32} weight="duotone" className="text-figma-teal" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-zinc-900 tracking-tight mb-3">I am a Patient</h2>
-                  <p className="text-zinc-500 font-medium leading-relaxed mb-8">
-                    Perform exercises at home with real-time AI feedback and share progress with your physical therapist.
-                  </p>
-                  <div className="flex items-center gap-2 text-figma-teal font-bold group-hover:translate-x-2 transition-transform">
-                    Continue as Patient <ArrowRight size={20} weight="bold" />
-                  </div>
-                </button>
-
-                <button 
-                  onClick={() => { setRole('doctor'); handleComplete(); }}
-                  className="group bg-zinc-950 rounded-[2.5rem] p-10 border border-zinc-900 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] hover:border-figma-vibrant/50 hover:shadow-lg hover:shadow-figma-vibrant/10 transition-all duration-300 text-left relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-8 border border-white/10 backdrop-blur-md relative z-10">
-                    <Stethoscope size={32} weight="duotone" className="text-white" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight mb-3 relative z-10">I am a Doctor</h2>
-                  <p className="text-zinc-400 font-medium leading-relaxed mb-8 relative z-10">
-                    Review patient kinematics, view AI-assisted telemetry, and manage recovery programs remotely.
-                  </p>
-                  <div className="flex items-center gap-2 text-white font-bold group-hover:translate-x-2 transition-transform relative z-10">
-                    Continue as Doctor <ArrowRight size={20} weight="bold" />
-                  </div>
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 3: PATIENT PIN */}
-          {step === 3 && role === 'patient' && (
-            <motion.div 
-              key="step3"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="max-w-md mx-auto bg-white rounded-[2.5rem] p-10 border border-slate-200/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] text-center"
+            <button
+              type="button"
+              onClick={() => handleComplete("patient", true)}
+              disabled={loading}
+              className="w-full text-sm text-white/30 hover:text-white/60 transition-colors py-2"
             >
-              <div className="w-16 h-16 bg-zinc-50 border border-zinc-200 rounded-2xl flex items-center justify-center mx-auto mb-8">
-                <Key size={32} weight="duotone" className="text-zinc-600" />
-              </div>
-              <h1 className="text-3xl font-bold text-zinc-900 tracking-tight mb-2">Doctor's PIN</h1>
-              <p className="text-zinc-500 font-medium mb-8">If your doctor gave you a 4-digit code, enter it below to link your accounts.</p>
-              
-              {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium">
-                  ⚠️ {error}
-                </div>
-              )}
-
-              <input 
-                type="text" 
-                maxLength={4}
-                value={cabinetCode}
-                onChange={e => setCabinetCode(e.target.value)}
-                placeholder="e.g. 4829"
-                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-4 px-4 text-center text-3xl tracking-[1em] font-mono text-zinc-900 placeholder:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-figma-teal/50 focus:border-figma-teal transition-all mb-6"
-              />
-
-              <button 
-                onClick={handleComplete}
-                disabled={loading}
-                className="w-full bg-zinc-900 hover:bg-black text-white rounded-xl py-4 font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 mb-4"
-              >
-                {loading ? "Linking..." : "Complete Setup"} <ArrowRight size={20} weight="bold" />
-              </button>
-              
-              <button 
-                onClick={handleComplete}
-                disabled={loading}
-                className="text-sm font-bold text-zinc-400 hover:text-zinc-600 transition-colors"
-              >
-                I don't have a code right now
-              </button>
-            </motion.div>
-          )}
-
-        </AnimatePresence>
+              I don't have a code right now
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );

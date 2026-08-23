@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deviceStore } from "@/lib/device/deviceStore";
-import { processRawEegBatch, generateSimulatedTelemetry } from "@/lib/eeg/signalProcessing";
+import { processRawEegBatch } from "@/lib/eeg/signalProcessing";
 import { EegTelemetry } from "@/lib/eeg/useEegStream";
 
 /**
  * POST /api/device/telemetry
- * Called by ESP32 (or test simulator) via HTTP POST
+ * Called by ESP32 via HTTP POST
  * Body can contain:
  * 1. Raw ADS1115 sample batch: { deviceId, sessionId, sequence, samples: number[], samples_o?: number[] }
  * 2. Or pre-processed metrics: { deviceId, signalQuality, motorAttemptProbability, ... }
@@ -13,7 +13,7 @@ import { EegTelemetry } from "@/lib/eeg/useEegStream";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const deviceId = body.deviceId || "esp32-demo-01";
+    const deviceId = body.deviceId || "esp32-01";
     const sequence = body.sequence || 1;
     const sessionId = body.sessionId;
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       // Process raw ADC samples through native TypeScript DSP engine
       telemetry = processRawEegBatch(deviceId, sequence, body.samples, body.samples_o, sessionId);
     } else if (typeof body.signalQuality === "number") {
-      // Pre-processed telemetry passed directly
+      // Pre-processed telemetry passed directly from physical hardware
       telemetry = {
         deviceId,
         sequence,
@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
         timestamp: Date.now(),
       };
     } else {
-      telemetry = generateSimulatedTelemetry(deviceId, sequence);
+      return NextResponse.json(
+        { error: "Invalid telemetry packet. Must contain real samples or signal metrics." },
+        { status: 400 }
+      );
     }
 
     // Save in in-memory device store
@@ -60,13 +63,12 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET /api/device/telemetry?deviceId=esp32-demo-01&simulate=true
- * Polled by Next.js browser page to read the latest live telemetry
+ * GET /api/device/telemetry?deviceId=esp32-01
+ * Polled by Next.js browser page to read the latest real hardware telemetry
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const deviceId = searchParams.get("deviceId") || "esp32-demo-01";
-  const simulateFallback = searchParams.get("simulate") !== "false";
+  const deviceId = searchParams.get("deviceId") || "esp32-01";
 
   const { telemetry, isHardwareOnline, lastSeenMs } = deviceStore.getTelemetry(deviceId);
   const currentCommand = deviceStore.getCommand(deviceId);
@@ -76,18 +78,6 @@ export async function GET(request: NextRequest) {
       telemetry,
       isHardwareOnline: true,
       isStreaming: currentCommand.command === "START_STREAM",
-      lastSeenMs,
-    });
-  }
-
-  // If physical hardware hasn't sent data recently and fallback is enabled, produce simulated telemetry
-  if (simulateFallback) {
-    const isStreaming = currentCommand.command === "START_STREAM";
-    const simTelemetry = generateSimulatedTelemetry(deviceId, undefined, isStreaming);
-    return NextResponse.json({
-      telemetry: simTelemetry,
-      isHardwareOnline: false,
-      isStreaming,
       lastSeenMs,
     });
   }

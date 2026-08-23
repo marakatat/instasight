@@ -3,16 +3,22 @@
 import { useRef, useState } from "react";
 import type { AIFeedbackEvent } from "@/types/rehabilitation";
 
-export function SessionVideoReview({ events, videoUrl, doctorSummary }: { events: AIFeedbackEvent[]; videoUrl?: string | null; doctorSummary?: string | null }) {
+export function SessionVideoReview({
+  events,
+  videoUrl,
+  doctorSummary,
+}: {
+  events: AIFeedbackEvent[];
+  videoUrl?: string | null;
+  doctorSummary?: string | null;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<AIFeedbackEvent | null>(null);
 
   function jumpToEvent(event: AIFeedbackEvent) {
     setSelectedEvent(event);
     if (videoRef.current) {
-      // jump to timestamp, fallback to 0 if missing
       videoRef.current.currentTime = (event.videoTimeMs || 0) / 1000;
-      
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
@@ -23,26 +29,29 @@ export function SessionVideoReview({ events, videoUrl, doctorSummary }: { events
   }
 
   return (
-    <div className="grid lg:grid-cols-[1fr_400px] gap-8">
+    <div className="grid lg:grid-cols-[1fr_380px] gap-8">
       {/* Video Player & Analytics */}
-      <div className="space-y-6">
+      <div className="space-y-8">
         
         {/* Clinical AI Summary */}
         {doctorSummary && (
-          <div className="bg-figma-teal/5 border border-figma-teal/20 p-8 rounded-[2.5rem] shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-figma-teal/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-            <div className="flex items-center gap-3 mb-4 relative z-10">
-              <span className="text-2xl">🧠</span>
-              <h3 className="text-xl font-bold text-figma-teal tracking-tight">Clinical AI Summary</h3>
+          <div className="border border-white/15 bg-white/5 p-8">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40">
+                AI Synthesis
+              </span>
             </div>
-            <p className="text-zinc-800 font-medium leading-relaxed relative z-10">
+            <h3 className="text-2xl font-serif font-bold text-white mb-3">
+              Clinical Assessment
+            </h3>
+            <p className="text-white/70 text-sm leading-relaxed">
               {doctorSummary}
             </p>
           </div>
         )}
 
-        <div className="relative aspect-video bg-black rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 group">
-           {/* Video from Supabase Storage */}
+        {/* Video Player Container */}
+        <div className="relative aspect-video bg-black border border-white/15 overflow-hidden">
           <video
             ref={videoRef}
             controls
@@ -51,107 +60,110 @@ export function SessionVideoReview({ events, videoUrl, doctorSummary }: { events
           />
         </div>
 
-        {/* AI Reason Panel (Traceable Explanation) */}
+        {/* AI Reason Panel */}
         {selectedEvent ? (
-          <div className="bg-white border border-slate-200/50 p-8 rounded-[2.5rem] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] relative overflow-hidden">
-            {/* Background Blurs depending on severity */}
-            <div className={`absolute top-0 right-0 w-64 h-64 rounded-full -translate-y-1/2 translate-x-1/3 opacity-20 pointer-events-none ${
-               "bg-figma-vibrant"
-            }`} />
+          <div className="border border-white/15 p-8 space-y-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 block mb-1">
+                  Repetition {selectedEvent.repetitionNumber || 1}
+                </span>
+                <h3 className="text-2xl font-serif font-bold text-white">
+                  Kinematic Analysis
+                </h3>
+              </div>
+              <span className="text-xs font-mono px-2 py-1 border border-white/20 uppercase text-white/60">
+                {selectedEvent.severity || "info"}
+              </span>
+            </div>
 
-            <h3 className="text-2xl font-bold text-zinc-900 mb-6 tracking-tight z-10 relative">AI Analysis — Rep {selectedEvent.repetitionNumber}</h3>
-            
-            <div className="grid grid-cols-2 gap-6 text-sm text-zinc-800 z-10 relative">
-              <div className="col-span-2">
-                <p className="font-semibold text-zinc-400 mb-2 text-xs">📋 Clinical Note</p>
-                <p className="bg-zinc-50 p-4 rounded-xl font-medium text-zinc-900 shadow-sm">
+            <div className="space-y-4">
+              <div>
+                <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 block mb-1">
+                  Clinical Note
+                </span>
+                <p className="border border-white/10 bg-white/5 p-4 text-sm text-white leading-relaxed">
                   {selectedEvent.clinicalNote || selectedEvent.suggestion}
                 </p>
               </div>
-              <div className="col-span-2">
-                <p className="font-semibold text-zinc-400 mb-2 text-xs">🔊 Spoken to Patient</p>
-                <p className="bg-figma-teal/5 p-4 rounded-xl italic text-zinc-700 shadow-sm">
+
+              <div>
+                <span className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 block mb-1">
+                  Patient Auditory Cue
+                </span>
+                <p className="p-4 border border-white/10 text-sm text-white/70 italic">
                   "{selectedEvent.suggestion}"
                 </p>
               </div>
-              
-              <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
-                <p className="font-semibold text-zinc-400 text-xs mb-1">Timestamp</p>
-                <p className="font-mono text-lg font-bold text-zinc-900">{formatTime(selectedEvent.videoTimeMs)}</p>
-              </div>
-              
-              <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
-                <p className="font-semibold text-zinc-400 text-xs mb-1">Severity</p>
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                  (selectedEvent.severity || 'info') === "warning" ? "bg-figma-mustard/20 text-figma-mustard" :
-                  (selectedEvent.severity || 'info') === "success" ? "bg-figma-teal/20 text-figma-teal" :
-                  "bg-zinc-200 text-zinc-700"
-                }`}>{(selectedEvent.severity || 'info')}</span>
+
+              <div className="grid grid-cols-2 gap-px bg-white/10">
+                <div className="bg-black p-4">
+                  <span className="text-[10px] font-mono uppercase text-white/40 block mb-1">Timestamp</span>
+                  <span className="font-mono text-base font-bold text-white">{formatTime(selectedEvent.videoTimeMs)}</span>
+                </div>
+                <div className="bg-black p-4">
+                  <span className="text-[10px] font-mono uppercase text-white/40 block mb-1">Confidence</span>
+                  <span className="font-mono text-base font-bold text-white">{((selectedEvent.confidence || 0.9) * 100).toFixed(0)}%</span>
+                </div>
               </div>
 
-              <div className="col-span-2 mt-2">
-                <p className="font-semibold text-zinc-400 mb-2 text-xs">Measurements (Telemetry)</p>
-                <ul className="grid grid-cols-2 gap-2 bg-zinc-50 p-4 rounded-xl border border-zinc-100 font-mono text-sm text-zinc-800">
-                  <li><span className="text-zinc-400 font-sans text-xs">Shoulder:</span> {selectedEvent.evidence?.shoulderAngle || 'N/A'}°</li>
-                  <li><span className="text-zinc-400 font-sans text-xs">Elbow:</span> {selectedEvent.evidence?.elbowAngle || 'N/A'}°</li>
-                  <li><span className="text-zinc-400 font-sans text-xs">Duration:</span> {selectedEvent.evidence?.movementDurationMs || 'N/A'}ms</li>
-                  <li><span className="text-zinc-400 font-sans text-xs">Confidence:</span> {((selectedEvent.evidence?.poseConfidence || 0) * 100).toFixed(0)}%</li>
-                </ul>
-              </div>
-
-              <div className="col-span-2 text-xs text-zinc-400 mt-4 flex justify-between items-center border-t border-slate-100 pt-4">
-                <span>Model: {selectedEvent.modelName}</span>
-                <span className="text-figma-mustard font-bold flex items-center gap-1">
-                  ⚠ AI suggestion — review required
-                </span>
+              <div className="border border-white/10 p-4">
+                <span className="text-[10px] font-mono uppercase text-white/40 block mb-2">Kinematic Evidence</span>
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono text-white/70">
+                  <div>Shoulder Angle: <span className="text-white">{selectedEvent.evidence?.shoulderAngle ?? "N/A"}°</span></div>
+                  <div>Elbow Angle: <span className="text-white">{selectedEvent.evidence?.elbowAngle ?? "N/A"}°</span></div>
+                  <div>Duration: <span className="text-white">{selectedEvent.evidence?.movementDurationMs ?? "N/A"}ms</span></div>
+                  <div>ROM: <span className="text-white">{selectedEvent.evidence?.rangeOfMotion ?? "N/A"}°</span></div>
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200/50 p-12 rounded-[2.5rem] text-center shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] flex flex-col items-center justify-center min-h-[300px]">
-            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
-              <span className="text-2xl">✨</span>
-            </div>
-            <h3 className="text-xl font-bold text-zinc-900 tracking-tight">Select an event</h3>
-            <p className="text-zinc-500 font-medium mt-2 max-w-[200px]">Click an event on the timeline to view the AI's explanation.</p>
+          <div className="border border-white/15 p-12 text-center">
+            <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/30 block mb-2">
+              Inspector
+            </span>
+            <p className="text-white/40 text-sm">
+              Select an event from the timeline to view detailed kinematics and notes.
+            </p>
           </div>
         )}
       </div>
 
-      {/* Timeline */}
-      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.03)] h-[calc(100vh-12rem)] overflow-y-auto sticky top-6">
-        <div className="flex items-center justify-between mb-8 sticky top-0 bg-white/80 backdrop-blur-md pb-4 z-10 border-b border-slate-100">
-          <h3 className="font-bold text-2xl text-zinc-900 tracking-tight">Timeline</h3>
-          <span className="px-3 py-1 bg-zinc-100 rounded-full text-xs font-bold text-zinc-500">{events.length} Events</span>
+      {/* Timeline List */}
+      <div className="border border-white/15 p-6 h-[calc(100vh-10rem)] overflow-y-auto sticky top-6">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6 sticky top-0 bg-black z-10">
+          <h3 className="font-serif font-bold text-xl text-white">Timeline</h3>
+          <span className="text-xs font-mono text-white/40">{events.length} Events</span>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           {events.length === 0 ? (
-            <p className="text-sm font-medium text-zinc-500 text-center py-8">No events recorded.</p>
+            <p className="text-sm font-mono text-white/30 text-center py-8">No events recorded.</p>
           ) : (
             events.map((event, idx) => (
               <button
                 key={event.id || idx}
                 onClick={() => jumpToEvent(event)}
-                className={`block w-full rounded-2xl border p-5 text-left transition-all duration-300 group ${
+                className={`block w-full border p-4 text-left transition-colors duration-200 ${
                   selectedEvent?.id === event.id 
-                    ? "bg-figma-vibrant/5 border-figma-vibrant/30 shadow-md ring-1 ring-figma-vibrant/20" 
-                    : "bg-zinc-50 border-zinc-200 hover:border-zinc-300 hover:shadow-sm"
+                    ? "bg-white text-black border-white" 
+                    : "bg-black text-white border-white/10 hover:border-white/40"
                 }`}
               >
-                <div className="flex justify-between items-center mb-3">
-                  <span className={`font-mono font-bold ${selectedEvent?.id === event.id ? 'text-figma-vibrant' : 'text-zinc-900'}`}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`font-mono text-xs font-bold ${selectedEvent?.id === event.id ? "text-black" : "text-white"}`}>
                     {formatTime(event.videoTimeMs)}
                   </span>
-                  <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
-                    (event.severity || 'info') === "warning" ? "bg-figma-mustard/20 text-figma-mustard" :
-                    (event.severity || 'info') === "success" ? "bg-figma-teal/20 text-figma-teal" :
-                    "bg-zinc-200 text-zinc-700"
+                  <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 border ${
+                    selectedEvent?.id === event.id 
+                      ? "border-black text-black" 
+                      : "border-white/20 text-white/50"
                   }`}>
-                    {(event.severity || 'info')}
+                    {event.severity || "info"}
                   </span>
                 </div>
-                <div className={`text-sm font-medium leading-relaxed ${selectedEvent?.id === event.id ? 'text-zinc-900' : 'text-zinc-600'}`}>
+                <div className={`text-xs leading-relaxed line-clamp-2 ${selectedEvent?.id === event.id ? "text-black/80 font-medium" : "text-white/60"}`}>
                   {event.clinicalNote || event.suggestion}
                 </div>
               </button>
