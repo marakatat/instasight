@@ -46,7 +46,7 @@ export type CombinedFeedbackEvent = {
 };
 
 interface UseEegStreamOptions {
-  deviceId?: string;
+  deviceId?: string | null;
   pollIntervalMs?: number;
   onFeedback?: (feedback: CombinedFeedbackEvent) => void;
   onTelemetry?: (telemetry: EegTelemetry | null) => void;
@@ -55,7 +55,7 @@ interface UseEegStreamOptions {
 
 export function useEegStream(options: UseEegStreamOptions = {}) {
   const {
-    deviceId = "esp32-01",
+    deviceId,
     pollIntervalMs = 150,
     isPolling = true,
     onFeedback,
@@ -76,13 +76,23 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef<boolean>(false);
 
+  const activeDevId = deviceId ? deviceId.trim() : "";
+
   const fetchTelemetry = useCallback(async () => {
+    if (!activeDevId) {
+      setIsConnected(false);
+      setIsHardwareOnline(false);
+      setTelemetry(null);
+      if (onTelemetryRef.current) onTelemetryRef.current(null);
+      return;
+    }
+
     if (isPollingRef.current) return;
     isPollingRef.current = true;
 
     try {
       const res = await fetch(
-        `/api/device/telemetry?deviceId=${encodeURIComponent(deviceId)}`,
+        `/api/device/telemetry?deviceId=${encodeURIComponent(activeDevId)}`,
         { cache: "no-store" }
       );
 
@@ -117,9 +127,20 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
     } finally {
       isPollingRef.current = false;
     }
-  }, [deviceId]);
+  }, [activeDevId]);
 
   useEffect(() => {
+    if (!activeDevId) {
+      setIsConnected(false);
+      setIsHardwareOnline(false);
+      setTelemetry(null);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      return;
+    }
+    
     if (!isPolling) {
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -140,17 +161,18 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
         pollRef.current = null;
       }
     };
-  }, [fetchTelemetry, pollIntervalMs, isPolling]);
+  }, [fetchTelemetry, pollIntervalMs, isPolling, activeDevId]);
 
   // Command helper to start streaming on ESP32
   const startStream = useCallback(
     async (sessionId?: string) => {
+      if (!activeDevId) return;
       try {
         await fetch("/api/device/commands", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            deviceId,
+            deviceId: activeDevId,
             type: "START_STREAM",
             sessionId,
           }),
@@ -159,24 +181,25 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
         console.error("Failed to send START_STREAM command:", e);
       }
     },
-    [deviceId]
+    [activeDevId]
   );
 
   // Command helper to stop streaming on ESP32
   const stopStream = useCallback(async () => {
+    if (!activeDevId) return;
     try {
       await fetch("/api/device/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          deviceId,
+          deviceId: activeDevId,
           type: "STOP_STREAM",
         }),
       });
     } catch (e) {
       console.error("Failed to send STOP_STREAM command:", e);
     }
-  }, [deviceId]);
+  }, [activeDevId]);
 
   return {
     isConnected,

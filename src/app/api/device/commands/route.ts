@@ -7,7 +7,11 @@ import { deviceStore } from "@/lib/device/deviceStore";
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const deviceId = searchParams.get("deviceId") || "esp32-demo-01";
+  const deviceId = searchParams.get("deviceId")?.trim();
+
+  if (!deviceId) {
+    return NextResponse.json({ error: "Missing required deviceId" }, { status: 400 });
+  }
 
   const command = deviceStore.getCommand(deviceId);
 
@@ -24,14 +28,18 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/device/commands
  * Called by Next.js client (ExerciseSession) when patient starts/stops an exercise session
- * Body: { deviceId?: string, type: "START_STREAM" | "STOP_STREAM" | "IDLE", sessionId?: string }
+ * Body: { deviceId: string, type: "START_STREAM" | "STOP_STREAM" | "IDLE", sessionId?: string }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const deviceId = body.deviceId || "esp32-demo-01";
+    const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : "";
     const type = body.type || body.command || "IDLE";
     const sessionId = body.sessionId;
+
+    if (!deviceId) {
+      return NextResponse.json({ error: "Missing required deviceId" }, { status: 400 });
+    }
 
     if (!["START_STREAM", "STOP_STREAM", "IDLE"].includes(type)) {
       return NextResponse.json(

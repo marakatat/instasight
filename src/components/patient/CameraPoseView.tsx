@@ -82,6 +82,7 @@ export function CameraPoseView({
 
   // MediaRecorder management — starts/stops cleanly without tearing down the stream
   useEffect(() => {
+
     if (isRecording) {
       hasAttemptedRecord.current = true;
       const stream = mediaStreamRef.current;
@@ -352,7 +353,7 @@ export function CameraPoseView({
         
         <video 
           ref={videoRef} 
-          className="absolute inset-0 h-full w-full object-cover opacity-90" 
+          className="absolute inset-0 h-full w-full object-cover opacity-100" 
           playsInline 
           muted 
         />

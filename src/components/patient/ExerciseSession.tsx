@@ -13,11 +13,11 @@ type SessionState = "setup" | "active" | "processing" | "complete";
 export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
   const exercise = EXERCISE_LIBRARY[exerciseId] || EXERCISE_LIBRARY["right_arm_raise"];
   const [sessionState, setSessionState] = useState<SessionState>("setup");
-  const [processingStage, setProcessingStage] = useState(1);
-  const [uploadStatus, setUploadStatus] = useState("Encoding video capture...");
+  const [uploadStatus, setUploadStatus] = useState("Preparing session analysis...");
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [patientSummary, setPatientSummary] = useState<string | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [liveFeedback, setLiveFeedback] = useState<{ suggestion: string; severity: string } | null>(null);
   const [currentMetrics, setCurrentMetrics] = useState<PoseMetrics | null>(null);
 
@@ -28,85 +28,31 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
   const sessionIdRef = useRef<string>(`session_${Date.now()}`);
   const AI_CALL_LIMIT = 5;
 
-  const [deviceId, setDeviceId] = useState<string>("esp32-01");
-  const [showPairModal, setShowPairModal] = useState(false);
-  const [pairInput, setPairInput] = useState("");
-  const [pairError, setPairError] = useState<string | null>(null);
-  const [isPairing, setIsPairing] = useState(false);
+  const deviceId = "esp32-eeg-01";
 
-  // Fetch authenticated patient's unique paired device
   useEffect(() => {
-    async function loadPairedDevice() {
-      try {
-        const res = await fetch("/api/device/pair");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.deviceId) {
-            setDeviceId(data.deviceId);
-            setPairInput(data.deviceId);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch paired device:", err);
-      }
-    }
-    loadPairedDevice();
+    setIsMounted(true);
   }, []);
 
-  const handlePairDevice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pairInput.trim()) return;
-    setIsPairing(true);
-    setPairError(null);
-    try {
-      const res = await fetch("/api/device/pair", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId: pairInput.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to pair device");
-      }
-      setDeviceId(data.deviceId);
-      setShowPairModal(false);
-    } catch (err: any) {
-      setPairError(err.message || "Failed to pair device");
-    } finally {
-      setIsPairing(false);
-    }
-  };
-
-  // Real-time EEG telemetry stream from physical ESP32
+  // Real-time EEG telemetry stream from physical ESP32 / Phone Bridge
   const { telemetry, isHardwareOnline, startStream, stopStream } = useEegStream({
     deviceId,
     pollIntervalMs: 150,
     isPolling: sessionState === "setup" || sessionState === "active",
   });
 
-  const handleStart = () => {
-    aiEventsRef.current = [];
-    pendingAICallsRef.current = [];
-    aiCallCountRef.current = 0;
-    const newSessionId = `session_${Date.now()}`;
-    sessionIdRef.current = newSessionId;
-    setSessionUrl(null);
-    setProcessingStage(1);
-    setSessionState("active");
-    
-    startStream(newSessionId);
-    speak("Starting the exercise. Move slowly.");
-  };
+  const hasUploadedRef = useRef(false);
+  const stopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleStop = () => {
-    setSessionState("processing");
-    setProcessingStage(1);
-    setUploadStatus("Finalizing kinematic tracking...");
-    stopStream();
-    speak("Exercise finished. Analyzing your movement.");
-  };
+  const uploadSessionData = async (blob: Blob) => {
+    if (hasUploadedRef.current) return;
+    hasUploadedRef.current = true;
 
-  const handleRecordingComplete = async (blob: Blob) => {
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current);
+      stopTimeoutRef.current = null;
+    }
+
     try {
       setProcessingStage(2);
       setUploadStatus("Syncing timecodes and uploading video stream...");
@@ -142,44 +88,90 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
         if (result.patientSummary) setPatientSummary(result.patientSummary);
         setSessionState("complete");
       } else {
-        setUploadStatus("Error syncing session with server.");
+        const errJson = await res.json().catch(() => ({}));
+        setUploadStatus(errJson.error || "Error saving session to server.");
       }
-    } catch (e) {
-      console.error(e);
-      setUploadStatus("Failed to complete analysis upload.");
+    } catch (e: any) {
+      console.error("Session upload error:", e);
+      setUploadStatus(e.message || "Failed to complete analysis upload.");
     }
+  };
+
+  const handleStart = () => {
+    aiEventsRef.current = [];
+    pendingAICallsRef.current = [];
+    aiCallCountRef.current = 0;
+    hasUploadedRef.current = false;
+    const newSessionId = `session_${Date.now()}`;
+    sessionIdRef.current = newSessionId;
+    setSessionUrl(null);
+    setSessionState("active");
+    
+    startStream(newSessionId);
+    speak("Starting the exercise. Move slowly.");
+  };
+
+  const handleStop = () => {
+    setSessionState("processing");
+    setUploadStatus("Finalizing video capture & saving session...");
+    stopStream();
+    speak("Exercise finished. Analyzing your movement.");
+
+    // Safety fallback: if MediaRecorder doesn't emit blob within 1.2s, upload recorded events directly
+    if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
+    stopTimeoutRef.current = setTimeout(() => {
+      if (!hasUploadedRef.current) {
+        console.warn("MediaRecorder onstop timeout reached, proceeding with upload...");
+        uploadSessionData(new Blob([], { type: "video/webm" }));
+      }
+    }, 1200);
+  };
+
+  const handleRecordingComplete = async (blob: Blob) => {
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current);
+      stopTimeoutRef.current = null;
+    }
+    await uploadSessionData(blob);
   };
 
   const handleAIEvent = useCallback((event: AIFeedbackEvent) => {
     aiEventsRef.current.push(event);
-    setLiveFeedback({ suggestion: event.suggestion, severity: event.severity });
+
+    setLiveFeedback({
+      suggestion: event.suggestion,
+      severity: event.severity,
+    });
+
     if (liveFeedbackTimerRef.current) clearTimeout(liveFeedbackTimerRef.current);
-    liveFeedbackTimerRef.current = setTimeout(() => setLiveFeedback(null), 8000);
+    liveFeedbackTimerRef.current = setTimeout(() => {
+      setLiveFeedback(null);
+    }, 4500);
+
+    speak(event.suggestion);
   }, []);
 
   const handleAIPromise = useCallback((promise: Promise<void>) => {
     pendingAICallsRef.current.push(promise);
+    aiCallCountRef.current += 1;
   }, []);
 
   const shouldTriggerAI = useCallback(() => {
-    aiCallCountRef.current += 1;
-    return aiCallCountRef.current <= AI_CALL_LIMIT;
+    return aiCallCountRef.current < AI_CALL_LIMIT;
   }, []);
 
   const handleLoaded = useCallback(() => {
     setIsCameraReady(true);
   }, []);
 
-  const motorIntentPct = telemetry ? Math.round((telemetry.motorAttemptProbability ?? 0) * 100) : null;
+  const motorIntentPct = telemetry ? Math.round(telemetry.motorAttemptProbability * 100) : null;
 
   return (
-    <div className="min-h-[100dvh] bg-black text-white overflow-hidden flex flex-col font-sans relative">
-      
-      {/* Live Camera Layer (Full visibility for patient during setup & workout) */}
-      <div className={`absolute inset-0 transition-opacity duration-500 ${sessionState === "processing" ? "opacity-10 pointer-events-none" : "opacity-100"}`}>
-        <CameraPoseView 
-          isActive={sessionState === "setup" || sessionState === "active"}
-          isRecording={sessionState === "active"} 
+    <div className="relative w-full h-[100dvh] bg-black overflow-hidden flex flex-col items-center justify-center select-none font-sans">
+      {/* Visual Workspace & Video Layer */}
+      <div className="absolute inset-0 w-full h-full">
+        <CameraPoseView
+          isRecording={sessionState === "active"}
           onRecordingComplete={handleRecordingComplete}
           onAIEvent={handleAIEvent}
           onAIPromise={handleAIPromise}
@@ -211,15 +203,10 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
                 {isCameraReady ? "Camera Live" : "Initializing Camera"}
               </span>
               <span className="text-white/20">|</span>
-              <button
-                onClick={() => setShowPairModal(true)}
-                className="flex items-center gap-1.5 text-white/70 hover:text-white transition-colors cursor-pointer"
-                title="Click to pair or change ESP32 hardware device"
-              >
+              <div className="flex items-center gap-1.5 text-white/70">
                 <span className={`inline-block w-1.5 h-1.5 ${isHardwareOnline ? "bg-emerald-400" : "bg-white/20"}`} />
-                <span>ESP32: <strong className="text-white font-mono">{deviceId}</strong> ({isHardwareOnline ? "Online" : "Offline"})</span>
-                <span className="text-[10px] text-white/40 underline ml-1">Edit</span>
-              </button>
+                <span>EEG Stream: <strong className="text-white font-mono">{isHardwareOnline ? "Online" : "Ready"}</strong></span>
+              </div>
             </div>
           </div>
 
@@ -242,59 +229,50 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
         {/* CENTER OVERLAYS */}
         <div className="flex-1 flex flex-col items-center justify-center w-full">
           
-          {/* Setup / Camera Alignment Box (Positioned unobtrusively so user sees camera) */}
+          {/* Setup / Camera Alignment Framing Reticle */}
           {sessionState === "setup" && isCameraReady && (
-            <div className="bg-black/90 border border-white/20 p-8 md:p-10 text-center max-w-md pointer-events-auto backdrop-blur-md shadow-2xl">
-              <span className="text-xs font-mono tracking-[0.2em] uppercase text-white/40 block mb-2">
-                01 / Camera Alignment
-              </span>
-              <h2 className="text-2xl md:text-3xl font-serif font-bold mb-3 text-white">
-                Position Camera
-              </h2>
-              <p className="text-white/60 text-xs leading-relaxed mb-6 font-mono">
-                {exercise.description} Verify your full body is clearly visible in the preview above. When positioned, begin the exercise.
-              </p>
-              <button 
-                onClick={handleStart}
-                className="w-full py-4 bg-white text-black font-bold text-sm tracking-wide hover:bg-white/90 transition-colors"
-              >
-                START RECORDING →
-              </button>
+            <div className="flex flex-col items-center justify-center pointer-events-none">
+              <div className="w-[280px] h-[360px] sm:w-[380px] sm:h-[480px] border-2 border-white/20 border-dashed rounded-3xl relative flex flex-col items-center justify-between p-4">
+                <div className="text-[10px] font-mono tracking-[0.2em] uppercase bg-black/60 px-3 py-1 text-white/70 border border-white/10 backdrop-blur-sm">
+                  Position Upper Body & Right Arm
+                </div>
+                <div className="text-[10px] font-mono text-white/40 bg-black/60 px-3 py-1 border border-white/10 backdrop-blur-sm">
+                  Pose tracking active • Ready to record
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Processing State: Authentic Clinical Pipeline */}
+          {/* Processing State: Real Upload & Synthesis Progress */}
           {sessionState === "processing" && (
-            <div className="bg-black border border-white/20 p-8 md:p-12 text-center max-w-xl w-full pointer-events-auto backdrop-blur-md">
-              <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-white/40 block mb-3">
-                Telemetry Pipeline
+            <div className="bg-black border border-white/20 p-8 md:p-12 text-center max-w-xl w-full pointer-events-auto backdrop-blur-md shadow-2xl">
+              <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-white/40 block mb-2">
+                Session Finalization
               </span>
               <h2 className="text-3xl font-serif font-bold mb-6 text-white">
-                Synthesizing Session
+                Saving Session
               </h2>
 
-              <div className="space-y-3 text-left mb-8 font-mono text-xs">
-                <div className={`p-3 border flex items-center justify-between ${processingStage >= 1 ? "border-white/40 bg-white/5 text-white" : "border-white/10 text-white/30"}`}>
-                  <span>01. KINEMATIC EXTRACTION & DSP</span>
-                  <span>{processingStage > 1 ? "COMPLETE" : "RUNNING..."}</span>
+              {/* Real Session Metrics Summary */}
+              <div className="grid grid-cols-3 gap-px bg-white/10 w-full mb-8">
+                <div className="bg-black p-4 text-center">
+                  <p className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 mb-1">Reps</p>
+                  <p className="text-2xl font-mono font-bold text-white">{currentMetrics?.repetition || 0}</p>
                 </div>
-                <div className={`p-3 border flex items-center justify-between ${processingStage >= 2 ? "border-white/40 bg-white/5 text-white" : "border-white/10 text-white/30"}`}>
-                  <span>02. VIDEO TIMECODE ENCODING</span>
-                  <span>{processingStage > 2 ? "COMPLETE" : processingStage === 2 ? "UPLOADING..." : "PENDING"}</span>
+                <div className="bg-black p-4 text-center">
+                  <p className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 mb-1">Peak ROM</p>
+                  <p className="text-2xl font-mono font-bold text-white">{Math.round(currentMetrics?.rangeOfMotion || 0)}°</p>
                 </div>
-                <div className={`p-3 border flex items-center justify-between ${processingStage >= 3 ? "border-white/40 bg-white/5 text-white" : "border-white/10 text-white/30"}`}>
-                  <span>03. CLINICAL AI DOCTOR REPORT</span>
-                  <span>{processingStage === 3 ? "GENERATING..." : "PENDING"}</span>
+                <div className="bg-black p-4 text-center">
+                  <p className="text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 mb-1">AI Cues</p>
+                  <p className="text-2xl font-mono font-bold text-white">{aiEventsRef.current.length}</p>
                 </div>
               </div>
 
-              <div className="h-1 bg-white/10 w-full mb-4 overflow-hidden relative">
-                <div 
-                  className="h-full bg-white transition-all duration-700" 
-                  style={{ width: `${(processingStage / 3) * 100}%` }}
-                />
+              <div className="flex items-center justify-center gap-3 py-3 px-4 bg-white/5 border border-white/15 mb-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin" />
+                <span className="text-xs font-mono text-white/80">{uploadStatus}</span>
               </div>
-              <p className="text-white/40 text-xs font-mono">{uploadStatus}</p>
             </div>
           )}
 
@@ -343,7 +321,28 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
 
         {/* BOTTOM ROW */}
         <div className="flex justify-between items-end w-full gap-6">
-          {sessionState === "active" ? (
+          {sessionState === "setup" ? (
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 bg-black/90 border border-white/20 p-5 md:p-6 pointer-events-auto backdrop-blur-md">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-white/40 mb-1">
+                  01 / Optical Alignment
+                </span>
+                <p className="text-white text-sm font-medium">
+                  {isMounted && isCameraReady 
+                    ? "Check your position in the live camera preview. When aligned, start recording." 
+                    : "Initializing camera feed..."}
+                </p>
+              </div>
+              <button 
+                onClick={handleStart}
+                disabled={!isMounted || !isCameraReady}
+                suppressHydrationWarning
+                className="w-full sm:w-auto px-8 py-4 bg-white text-black font-bold text-xs font-mono tracking-widest uppercase hover:bg-white/90 transition-colors disabled:opacity-40 whitespace-nowrap"
+              >
+                {isMounted && isCameraReady ? "START RECORDING →" : "INITIALIZING CAMERA..."}
+              </button>
+            </div>
+          ) : sessionState === "active" ? (
             <>
               {/* Bottom Left: Real Telemetry Strip */}
               <div className="bg-black/90 border border-white/20 p-5 flex gap-8 pointer-events-auto backdrop-blur-md">
@@ -401,68 +400,6 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
           )}
         </div>
       </div>
-
-      {/* Hardware Pairing Modal */}
-      {showPairModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-black border border-white/20 p-8 max-w-md w-full shadow-2xl relative">
-            <button
-              onClick={() => setShowPairModal(false)}
-              className="absolute top-4 right-4 text-white/40 hover:text-white font-mono text-sm"
-            >
-              ✕
-            </button>
-            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-white/40 block mb-2">
-              Hardware Configuration
-            </span>
-            <h2 className="text-2xl font-serif font-bold text-white mb-2">
-              Link ESP32 Device
-            </h2>
-            <p className="text-xs text-white/50 mb-6 font-mono leading-relaxed">
-              Enter the unique Device ID of your ESP32 board. Each device can only be associated with one account.
-            </p>
-
-            {pairError && (
-              <div className="mb-4 p-3 border border-red-500/40 bg-red-500/10 text-red-300 text-xs font-mono">
-                {pairError}
-              </div>
-            )}
-
-            <form onSubmit={handlePairDevice} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-mono tracking-[0.15em] uppercase text-white/40 mb-2">
-                  Device ID
-                </label>
-                <input
-                  type="text"
-                  value={pairInput}
-                  onChange={(e) => setPairInput(e.target.value)}
-                  placeholder="instasight-XXXX"
-                  required
-                  className="w-full bg-white/5 border border-white/20 px-4 py-3 font-mono text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white transition-colors"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPairModal(false)}
-                  className="flex-1 py-3 border border-white/20 text-white/60 hover:text-white text-xs font-mono tracking-wider transition-colors"
-                >
-                  CANCEL
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPairing || !pairInput.trim()}
-                  className="flex-1 py-3 bg-white text-black font-bold text-xs font-mono tracking-wider hover:bg-white/90 transition-colors disabled:opacity-40"
-                >
-                  {isPairing ? "LINKING..." : "SAVE & PAIR →"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

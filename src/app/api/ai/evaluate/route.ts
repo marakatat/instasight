@@ -185,31 +185,57 @@ Respond ONLY in pure JSON, no markdown:
     }
 
     // 4. Construct Final Event
-    const aiEvent: AIFeedbackEvent = {
-      id: crypto.randomUUID(),
-      sessionId: input.sessionId,
-      videoTimeMs: input.videoTimeMs,
-      createdAt: new Date().toISOString(),
-      repetitionNumber: input.repetitionNumber,
-      suggestion: aiResult.suggestion || "Good job, keep it up.",
-      clinicalNote: aiResult.clinicalNote || undefined,
-      severity: aiResult.severity || "info",
-      reasonCodes: aiResult.reasonCodes || [],
-      evidence: {
+      const aiEvent: AIFeedbackEvent = {
+        id: crypto.randomUUID(),
+        sessionId: input.sessionId,
         videoTimeMs: input.videoTimeMs,
+        createdAt: new Date().toISOString(),
         repetitionNumber: input.repetitionNumber,
-        exercisePhase: "complete",
-        ...input.pose
-      },
-      confidence: 0.95, // We'd ideally get this from logprobs
-      modelName: model,
-      modelVersion: "1.0",
-      source: "ai",
-      therapistReviewed: false
-    };
+        suggestion: aiResult.suggestion || "Good job, keep it up.",
+        clinicalNote: aiResult.clinicalNote || undefined,
+        severity: aiResult.severity || "info",
+        reasonCodes: aiResult.reasonCodes || [],
+        evidence: {
+          videoTimeMs: input.videoTimeMs,
+          repetitionNumber: input.repetitionNumber,
+          exercisePhase: "complete",
+          ...input.pose
+        },
+        confidence: 0.92,
+        modelName: "openrouter-dots",
+        modelVersion: "1.0",
+        source: "ai",
+        therapistReviewed: false
+      };
 
-    return NextResponse.json(aiEvent);
-
+      return NextResponse.json(aiEvent);
+    } catch (llmErr) {
+      console.warn("OpenRouter slow or failed, using instant rule-based response:", llmErr);
+      const fallbackEvent: AIFeedbackEvent = {
+        id: crypto.randomUUID(),
+        sessionId: input.sessionId,
+        videoTimeMs: input.videoTimeMs,
+        createdAt: new Date().toISOString(),
+        repetitionNumber: input.repetitionNumber,
+        suggestion: (input.pose.rangeOfMotion && input.pose.rangeOfMotion < 60) 
+          ? "Try lifting your arm slightly higher if comfortable." 
+          : "Good movement form. Maintain this pace.",
+        severity: (input.pose.rangeOfMotion && input.pose.rangeOfMotion < 60) ? "warning" : "success",
+        reasonCodes: (input.pose.rangeOfMotion && input.pose.rangeOfMotion < 60) ? ["RANGE_OF_MOTION_BELOW_TARGET"] : [],
+        evidence: {
+          videoTimeMs: input.videoTimeMs,
+          repetitionNumber: input.repetitionNumber,
+          exercisePhase: "complete",
+          ...input.pose
+        },
+        confidence: 0.88,
+        modelName: "clinical-rules-engine",
+        modelVersion: "1.0",
+        source: "rules",
+        therapistReviewed: false
+      };
+      return NextResponse.json(fallbackEvent);
+    }
   } catch (error: any) {
     if (error.message === "RATE_LIMIT_EXCEEDED") {
       return NextResponse.json({ error: "Rate limit exceeded. Please wait." }, { status: 429 });
