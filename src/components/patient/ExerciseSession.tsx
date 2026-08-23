@@ -20,6 +20,7 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
   const [isMounted, setIsMounted] = useState(false);
   const [liveFeedback, setLiveFeedback] = useState<{ suggestion: string; severity: string } | null>(null);
   const [currentMetrics, setCurrentMetrics] = useState<PoseMetrics | null>(null);
+  const [processingStage, setProcessingStage] = useState(1);
 
   const liveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiEventsRef = useRef<AIFeedbackEvent[]>([]);

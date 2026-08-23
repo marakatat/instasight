@@ -295,8 +295,9 @@ export function CameraPoseView({
                           },
                           eeg: currentEeg ? {
                             signalQuality: currentEeg.signalQuality,
-                            attentionState: currentEeg.attentionState,
-                            fatigueLevel: currentEeg.fatigueLevel,
+                            motorIntentScore: currentEeg.motorAttemptProbability,
+                            intentionState: currentEeg.intentionState,
+                            fatigueIndex: currentEeg.fatigueIndex,
                           } : null
                         })
                       })
