@@ -81,6 +81,7 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
   const { telemetry, isHardwareOnline, startStream, stopStream } = useEegStream({
     deviceId,
     pollIntervalMs: 150,
+    isPolling: sessionState === "setup" || sessionState === "active",
   });
 
   const handleStart = () => {
@@ -110,18 +111,24 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
       setProcessingStage(2);
       setUploadStatus("Syncing timecodes and uploading video stream...");
       
-      // Wait for any inflight AI cues to finish
+      // Wait for any inflight AI cues to finish, but do not block forever (5s max)
       if (pendingAICallsRef.current.length > 0) {
-        await Promise.allSettled(pendingAICallsRef.current);
+        await Promise.race([
+          Promise.allSettled(pendingAICallsRef.current),
+          new Promise((resolve) => setTimeout(resolve, 5000))
+        ]);
       }
 
       setProcessingStage(3);
       setUploadStatus("Generating clinical report & PT analysis...");
 
       const formData = new FormData();
-      formData.append("video", blob, "recording.webm");
+      if (blob && blob.size > 0) {
+        formData.append("video", blob, "recording.webm");
+      }
       formData.append("events", JSON.stringify(aiEventsRef.current));
       formData.append("sessionId", sessionIdRef.current);
+      formData.append("exerciseId", exerciseId);
 
       const res = await fetch("/api/sessions/upload", {
         method: "POST",

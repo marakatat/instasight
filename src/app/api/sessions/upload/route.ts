@@ -2,51 +2,63 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 export async function POST(request: NextRequest) {
+  let step = "init";
   try {
+    step = "create-client";
     const supabase = await createClient();
     
-    // Check for authenticated user to link the session to a patient
+    step = "get-user";
     const { data: { user } } = await supabase.auth.getUser();
 
+    step = "parse-formdata";
     const formData = await request.formData();
-    const videoFile = formData.get("video") as File;
+    const videoFile = formData.get("video") as File | null;
     const eventsString = formData.get("events") as string;
     const sessionId = formData.get("sessionId") as string || `session_${Date.now()}`;
+    const exerciseId = formData.get("exerciseId") as string || "unknown";
 
-    if (!videoFile || !eventsString) {
-      return NextResponse.json({ error: "Missing data" }, { status: 400 });
+    console.log(`[upload] sessionId=${sessionId} exerciseId=${exerciseId} events=${eventsString?.length} video=${videoFile?.size}`);
+
+    if (!eventsString) {
+      return NextResponse.json({ error: "Missing events data" }, { status: 400 });
     }
 
+    step = "parse-events";
     const events = JSON.parse(eventsString);
+    console.log(`[upload] Parsed ${events.length} events`);
 
-    // 1. Upload video to Supabase Storage
-    const arrayBuffer = await videoFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const videoPath = `sessions/${sessionId}/recording.webm`;
+    let videoUrl = null;
 
-    const { data: storageData, error: storageError } = await supabase.storage
-      .from("session-videos")
-      .upload(videoPath, buffer, {
-        contentType: "video/webm",
-        upsert: true,
-      });
+    if (videoFile && videoFile.size > 0) {
+      step = "upload-video";
+      const arrayBuffer = await videoFile.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const videoPath = `sessions/${sessionId}/recording.webm`;
 
-    if (storageError) {
-      console.error("Storage upload error:", storageError);
-      // Don't fail the whole request — events are more important
+      const { error: storageError } = await supabase.storage
+        .from("session-videos")
+        .upload(videoPath, buffer, {
+          contentType: "video/webm",
+          upsert: true,
+        });
+
+      if (storageError) {
+        console.error("[upload] Storage upload error:", storageError.message);
+      } else {
+        const { data: urlData } = supabase.storage
+          .from("session-videos")
+          .getPublicUrl(videoPath);
+        videoUrl = urlData?.publicUrl;
+        console.log("[upload] Video uploaded:", videoUrl);
+      }
     }
-
-    // Get a public URL for the video
-    const { data: urlData } = supabase.storage
-      .from("session-videos")
-      .getPublicUrl(videoPath);
-    const videoUrl = urlData?.publicUrl;
 
     // 2. Generate AI Summaries from the events
+    step = "ai-summary";
     let patientSummary = "Great job today! Keep up the good work.";
     let doctorSummary = "Session complete. No significant deviations noted.";
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey && events.length > 0) {
       const systemPrompt = `You are a clinical AI assistant analyzing a patient's physical therapy session.
 You are given a list of feedback events recorded during the session (each containing range of motion, motor intent scores, suggestions, and clinical notes).
@@ -61,76 +73,108 @@ Respond ONLY in pure JSON format:
 }`;
 
       try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        const model = "gemini-3.5-flash-lite";
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "dots-studio/dots-3-note-preview:free",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: JSON.stringify({ events }) }
-            ]
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: JSON.stringify({ events }) }] }]
           })
         });
 
+        console.log(`[upload] Gemini status: ${response.status}`);
         if (response.ok) {
           const data = await response.json();
-          const content = data.choices[0].message.content.trim();
-          const parsed = JSON.parse(content.replace(/^```json|```$/g, ''));
-          if (parsed.patientSummary) patientSummary = parsed.patientSummary;
-          if (parsed.doctorSummary) doctorSummary = parsed.doctorSummary;
+          const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (content) {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.patientSummary) patientSummary = parsed.patientSummary;
+              if (parsed.doctorSummary) doctorSummary = parsed.doctorSummary;
+              console.log("[upload] AI summary generated successfully");
+            }
+          } else {
+            console.warn("[upload] Gemini returned no content:", JSON.stringify(data));
+          }
+        } else {
+          const errBody = await response.text();
+          console.warn("[upload] Gemini error response:", errBody);
         }
       } catch (err) {
-        console.error("AI Summarization failed, using fallbacks:", err);
+        console.error("[upload] AI Summarization failed:", err);
       }
+    } else {
+      console.log(`[upload] Skipping AI summary: apiKey=${!!apiKey} events=${events.length}`);
     }
 
-    // 3. Upsert session record with summaries
+    // 3. Upsert session record
+    step = "upsert-session";
+    console.log("[upload] Upserting session...");
     const { error: sessionError } = await supabase
       .from("sessions")
       .upsert({
         id: sessionId,
-        patient_id: user?.id || null, // Link to patient if logged in
+        patient_id: user?.id || null,
         video_url: videoUrl || null,
-        exercise_id: "right_arm_raise",
-        patient_summary: patientSummary,
-        doctor_summary: doctorSummary,
+        exercise_id: exerciseId,
         completed_at: new Date().toISOString(),
       });
 
-    if (sessionError) console.error("Session upsert error:", sessionError);
+    if (sessionError) {
+      console.error("[upload] Session upsert error:", sessionError.message, sessionError.details, sessionError.hint);
+      // Don't throw — continue to try saving events
+    }
 
-    // 4. Insert all AI events
-    if (events.length > 0) {
-      const rows = events.map((e: any) => ({
-        id: e.id,
-        session_id: sessionId,
-        video_time_ms: e.videoTimeMs,
-        repetition_number: e.repetitionNumber,
-        suggestion: e.suggestion,
-        clinical_note: e.clinicalNote,
-        severity: e.severity,
-        reason_codes: e.reasonCodes,
-        evidence: e.evidence,
-        model_name: e.modelName,
-        confidence: e.confidence,
-        source: e.source,
-        created_at: e.createdAt,
-      }));
+    // 4. Insert all AI events + summary event
+    step = "upsert-events";
+    const rows = events.map((e: any) => ({
+      id: e.id,
+      session_id: sessionId,
+      video_time_ms: e.videoTimeMs,
+      repetition_number: e.repetitionNumber,
+      suggestion: e.suggestion,
+      clinical_note: e.clinicalNote,
+      severity: e.severity,
+      reason_codes: e.reasonCodes,
+      evidence: e.evidence,
+      model_name: e.modelName,
+      confidence: e.confidence,
+      source: e.source,
+      created_at: e.createdAt,
+    }));
 
-      const { error: eventsError } = await supabase
-        .from("session_events")
-        .upsert(rows);
+    rows.push({
+      id: crypto.randomUUID(),
+      session_id: sessionId,
+      video_time_ms: 0,
+      repetition_number: 0,
+      suggestion: patientSummary,
+      clinical_note: doctorSummary,
+      severity: "info",
+      reason_codes: ["SESSION_SUMMARY"],
+      evidence: {},
+      model_name: "summary-agent",
+      confidence: 1.0,
+      source: "summary",
+      created_at: new Date().toISOString(),
+    });
 
-      if (eventsError) console.error("Events insert error:", eventsError);
+    console.log(`[upload] Inserting ${rows.length} rows into session_events...`);
+    const { error: eventsError } = await supabase
+      .from("session_events")
+      .upsert(rows);
+
+    if (eventsError) {
+      console.error("[upload] Events insert error:", eventsError.message, eventsError.details, eventsError.hint);
+    } else {
+      console.log("[upload] Events inserted successfully");
     }
 
     return NextResponse.json({ success: true, sessionId, videoUrl, patientSummary });
-  } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json({ error: "Failed to upload" }, { status: 500 });
+  } catch (error: any) {
+    console.error(`[upload] CRASH at step="${step}":`, error?.message || error);
+    return NextResponse.json({ error: "Failed to upload", step, detail: error?.message }, { status: 500 });
   }
 }

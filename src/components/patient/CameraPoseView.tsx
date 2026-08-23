@@ -7,6 +7,7 @@ import { angle } from "@/lib/pose/geometry";
 import { EXERCISE_LIBRARY } from "@/lib/pose/exerciseLibrary";
 import { PoseMetrics, AIFeedbackEvent } from "@/types/rehabilitation";
 import { EegTelemetry } from "@/lib/eeg/useEegStream";
+import { speak } from "@/lib/voice/speak";
 
 export function CameraPoseView({ 
   isActive = true,
@@ -40,6 +41,7 @@ export function CameraPoseView({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const hasAttemptedRecord = useRef(false);
   
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -53,6 +55,8 @@ export function CameraPoseView({
 
   const lastErrorRef = useRef<string | null>(null);
   const lastErrorTimeRef = useRef<number>(0);
+  const lastRepTimeRef = useRef<number>(0);
+  const recordingStartTimeRef = useRef<number>(0);
 
   const callbacksRef = useRef({
     onLoaded,
@@ -78,25 +82,29 @@ export function CameraPoseView({
 
   // MediaRecorder management — starts/stops cleanly without tearing down the stream
   useEffect(() => {
-    const stream = mediaStreamRef.current;
-    if (!stream) return;
-
-    // Check if stream has active video tracks
-    const hasLiveTracks = stream.getVideoTracks().some(t => t.readyState === "live");
-    if (!hasLiveTracks) {
-      console.warn("MediaStream tracks are not live yet, skipping recording start.");
-      return;
-    }
-
     if (isRecording) {
+      hasAttemptedRecord.current = true;
+      const stream = mediaStreamRef.current;
+      if (!stream) {
+        console.warn("No stream available to start recording.");
+        return;
+      }
+
+      // Check if stream has active video tracks
+      const hasLiveTracks = stream.getVideoTracks().some(t => t.readyState === "live");
+      if (!hasLiveTracks) {
+        console.warn("MediaStream tracks are not live yet, skipping recording start.");
+        return;
+      }
+
       recordedChunksRef.current = [];
       try {
         let mimeType = "";
         if (typeof MediaRecorder !== "undefined") {
-          if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
-            mimeType = "video/webm;codecs=vp9,opus";
-          } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
-            mimeType = "video/webm;codecs=vp8,opus";
+          if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+            mimeType = "video/webm;codecs=vp9";
+          } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) {
+            mimeType = "video/webm;codecs=vp8";
           } else if (MediaRecorder.isTypeSupported("video/webm")) {
             mimeType = "video/webm";
           } else if (MediaRecorder.isTypeSupported("video/mp4")) {
@@ -120,18 +128,31 @@ export function CameraPoseView({
           recordedChunksRef.current = [];
         };
 
+        recordingStartTimeRef.current = performance.now();
         recorder.start(1000);
         mediaRecorderRef.current = recorder;
       } catch (err) {
         console.error("Failed to start MediaRecorder:", err);
+        // Fallback: if it fails to start, simulate a recording complete so the UI doesn't hang forever
+        callbacksRef.current.onRecordingComplete(new Blob([]));
       }
-    } else if (!isRecording && mediaRecorderRef.current) {
-      try {
-        if (mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
+    } else if (!isRecording && hasAttemptedRecord.current) {
+      hasAttemptedRecord.current = false;
+      if (mediaRecorderRef.current) {
+        try {
+          if (mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+          } else {
+            // Already inactive, manually trigger completion just in case
+            callbacksRef.current.onRecordingComplete(new Blob([]));
+          }
+        } catch (err) {
+          console.error("Failed to stop MediaRecorder:", err);
+          callbacksRef.current.onRecordingComplete(new Blob([]));
         }
-      } catch (err) {
-        console.error("Failed to stop MediaRecorder:", err);
+      } else {
+        // We never had a recorder, just proceed
+        callbacksRef.current.onRecordingComplete(new Blob([]));
       }
     }
   }, [isRecording]);
@@ -239,86 +260,60 @@ export function CameraPoseView({
                 metricsRef.current.repetition
               );
 
-              // Real-time AI vocal instructions based on form errors
-              if (newMetrics.error) {
-                if (newMetrics.error !== lastErrorRef.current || (performance.now() - lastErrorTimeRef.current > 6000)) {
-                  lastErrorRef.current = newMetrics.error;
-                  lastErrorTimeRef.current = performance.now();
-                  
-                  if (typeof window !== "undefined" && window.speechSynthesis) {
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.speak(new SpeechSynthesisUtterance(newMetrics.error));
-                  }
-                  
-                  if (callbacksRef.current.onAIEvent) {
-                    callbacksRef.current.onAIEvent({
-                      id: `rt_${Date.now()}`,
-                      sessionId: sessionId,
-                      videoTimeMs: Math.round(video.currentTime * 1000),
-                      createdAt: new Date().toISOString(),
-                      suggestion: newMetrics.error,
-                      severity: "warning",
-                      reasonCodes: ["realtime_form_correction"],
-                      evidence: {
-                        videoTimeMs: Math.round(video.currentTime * 1000),
-                        repetitionNumber: newMetrics.repetition,
-                        exercisePhase: newMetrics.phase as any,
-                        poseConfidence: 0.95
-                      },
-                      confidence: 1.0,
-                      modelName: "deterministic_rules",
-                      modelVersion: "1.0",
-                      source: "rules",
-                      therapistReviewed: false
-                    });
-                  }
-                }
-              } else {
-                if (lastErrorRef.current && (performance.now() - lastErrorTimeRef.current > 2000)) {
-                   lastErrorRef.current = null;
-                }
-              }
-
               if (mediaRecorderRef.current?.state === "recording" && 
                   metricsRef.current.phase === "holding" && 
                   newMetrics.phase === "lowering") {
-                  newMetrics.repetition += 1;
+                  
+                  const now = performance.now();
+                  // Debounce reps: require at least 2500ms between consecutive repetitions
+                  if (now - lastRepTimeRef.current > 2500) {
+                    lastRepTimeRef.current = now;
+                    newMetrics.repetition += 1;
 
-                  const { shouldTriggerAI, eegTelemetry: currentEeg, onAIEvent: handleEvent, onAIPromise: handlePromise } = callbacksRef.current;
-                  if (!shouldTriggerAI || shouldTriggerAI()) {
-                    const aiPromise = fetch("/api/ai/evaluate", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        sessionId: sessionId,
-                        videoTimeMs: Math.round(video.currentTime * 1000),
-                        repetitionNumber: newMetrics.repetition,
-                        exerciseId: exerciseDef.id,
-                        pose: {
-                          shoulderAngle: newMetrics.rightShoulderAngle || 0,
-                          elbowAngle: newMetrics.rightElbowAngle || 0,
-                          movementDurationMs: 3000,
-                          rangeOfMotion: newMetrics.rangeOfMotion,
-                          poseConfidence: 0.95
-                        },
-                        eeg: currentEeg ? {
-                          signalQuality: currentEeg.signalQuality,
-                          motorIntentScore: currentEeg.motorAttemptProbability
-                        } : undefined
+                    const { shouldTriggerAI, eegTelemetry: currentEeg, onAIEvent: handleEvent, onAIPromise: handlePromise } = callbacksRef.current;
+                    
+                    // Only trigger the heavy AI evaluation if there's an active form error, 
+                    // or if it's a milestone repetition (every 5 reps) to offer encouragement.
+                    const isImportantRep = !!newMetrics.error || (newMetrics.repetition % 5 === 0);
+                    
+                    if (isImportantRep && (!shouldTriggerAI || shouldTriggerAI())) {
+                      const aiPromise = fetch("/api/ai/evaluate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          sessionId: sessionId,
+                          videoTimeMs: Math.round(performance.now() - recordingStartTimeRef.current),
+                          repetitionNumber: newMetrics.repetition,
+                          exerciseId: exerciseDef.id,
+                          pose: {
+                            shoulderAngle: newMetrics.rightShoulderAngle || 0,
+                            elbowAngle: newMetrics.rightElbowAngle || 0,
+                            movementDurationMs: 3000,
+                            rangeOfMotion: newMetrics.rangeOfMotion,
+                            poseConfidence: 0.95
+                          },
+                          eeg: currentEeg ? {
+                            signalQuality: currentEeg.signalQuality,
+                            attentionState: currentEeg.attentionState,
+                            fatigueLevel: currentEeg.fatigueLevel,
+                          } : null
+                        })
                       })
-                    })
-                    .then(res => res.json())
-                    .then((aiEvent: any) => {
-                      if (aiEvent.error || !aiEvent.suggestion) return;
-                      if (typeof window !== "undefined" && window.speechSynthesis) {
-                        window.speechSynthesis.cancel();
-                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(aiEvent.suggestion));
-                      }
-                      if (handleEvent) handleEvent(aiEvent as AIFeedbackEvent);
-                    })
-                    .catch(err => console.error("AI Evaluation Error:", err));
+                      .then(res => res.json())
+                      .then((data: any) => {
+                        const event = data.event || data;
+                        if (event.error || !event.suggestion) return;
+                        speak(event.suggestion);
+                        if (handleEvent) {
+                          handleEvent(event as AIFeedbackEvent);
+                        }
+                      })
+                      .catch(err => console.error("AI processing error:", err));
 
-                    if (handlePromise) handlePromise(aiPromise as unknown as Promise<void>);
+                      if (handlePromise) {
+                        handlePromise(aiPromise);
+                      }
+                    }
                   }
               }
               metricsRef.current = newMetrics;

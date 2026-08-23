@@ -67,7 +67,7 @@ export default async function Home() {
         <div className="grid md:grid-cols-12 gap-8 md:gap-12">
           
           <Link
-            href="/patient/session/right_arm_raise"
+            href="/patient/home"
             className="md:col-span-7 group block relative p-10 md:p-14 bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-900 hover:border-zinc-700 transition-all duration-500 overflow-hidden"
           >
             <div className="relative z-10 flex flex-col h-full min-h-[240px] justify-between">
@@ -76,11 +76,12 @@ export default async function Home() {
                   01 / Patient
                 </span>
                 <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-zinc-100">
-                  Live Session
+                  Exercise Library
                 </h2>
+                <p className="text-zinc-500 text-sm mt-3">5 exercises — AI-guided, dataset-backed</p>
               </div>
               <div className="flex items-center justify-between mt-12 text-zinc-400 group-hover:text-zinc-100 transition-colors">
-                <span className="text-sm font-medium">Initialize tracking</span>
+                <span className="text-sm font-medium">Start a session or view progress</span>
                 <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform duration-500" />
               </div>
             </div>
