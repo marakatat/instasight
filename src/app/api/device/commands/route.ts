@@ -50,12 +50,43 @@ export async function POST(request: NextRequest) {
 
     const command = deviceStore.setCommand(deviceId, type, sessionId);
 
+    // Also attempt direct local communication to the Python Bridge on port 5001
+    const bridgeBaseUrl = process.env.BRIDGE_URL || "http://127.0.0.1:5001";
+    let bridgeDirectResponse: any = null;
+
+    try {
+      if (type === "START_STREAM") {
+        const bridgeRes = await fetch(`${bridgeBaseUrl}/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: sessionId || `session_${Date.now()}` }),
+          signal: AbortSignal.timeout(1500),
+        });
+        if (bridgeRes.ok) {
+          bridgeDirectResponse = await bridgeRes.json();
+        }
+      } else if (type === "STOP_STREAM") {
+        const bridgeRes = await fetch(`${bridgeBaseUrl}/stop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(1500),
+        });
+        if (bridgeRes.ok) {
+          bridgeDirectResponse = await bridgeRes.json();
+        }
+      }
+    } catch {
+      // Bridge may be running on remote IP or will pick up via fallback polling
+    }
+
     return NextResponse.json({
       success: true,
       activeCommand: command,
+      bridgeDirect: bridgeDirectResponse ? { ok: true, data: bridgeDirectResponse } : { ok: false, mode: "queued" },
     });
   } catch (error) {
     console.error("Error setting device command:", error);
     return NextResponse.json({ error: "Failed to process command" }, { status: 500 });
   }
 }
+

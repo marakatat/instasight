@@ -1,0 +1,11 @@
+{
+  "sessionId": "session_1787475072",
+  "deviceId": "esp32-eeg-01",
+  "sampleRate": 250,
+  "sampleCount": 0,
+  "packetCount": 0,
+  "startedAt": null,
+  "stoppedAt": "2026-08-23T08:51:12.468736+00:00",
+  "samples": [],
+  "source": "esp32-phone-bridge"
+}

@@ -49,6 +49,10 @@ export default async function DoctorSessionPage({
 
   const videoUrl = session?.video_url || null;
 
+  // Retrieve session-specific EEG metrics from deviceStore
+  const { deviceStore } = await import("@/lib/device/deviceStore");
+  const eegMetrics = deviceStore.getSessionMetrics("esp32-eeg-01", sessionId);
+
   return (
     <main className="min-h-[100dvh] bg-black p-6 md:p-12 text-white">
       <div className="max-w-[1600px] mx-auto">
@@ -62,11 +66,12 @@ export default async function DoctorSessionPage({
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight text-white">
-                Session Review
+                Clinical Neuro-Kinematic Review
               </h1>
               <p className="text-white/40 text-sm mt-2 font-mono">
                 Protocol: <span className="text-white">Right Arm Raise</span> 
                 {" "}• Session: <span className="text-white/70">{sessionId}</span>
+                {" "}• Device: <span className="text-emerald-400 font-mono">esp32-eeg-01</span>
               </p>
             </div>
           </div>
@@ -79,6 +84,7 @@ export default async function DoctorSessionPage({
             events={events} 
             videoUrl={videoUrl} 
             doctorSummary={session?.doctor_summary}
+            eegMetrics={eegMetrics}
           />
         ) : (
           <div className="border border-white/15 p-16 text-center">
@@ -92,3 +98,4 @@ export default async function DoctorSessionPage({
     </main>
   );
 }
+

@@ -80,19 +80,11 @@ export async function GET(request: NextRequest) {
   const { telemetry, isHardwareOnline, lastSeenMs } = deviceStore.getTelemetry(deviceId);
   const currentCommand = deviceStore.getCommand(deviceId);
 
-  if (telemetry && isHardwareOnline) {
-    return NextResponse.json({
-      telemetry,
-      isHardwareOnline: true,
-      isStreaming: currentCommand.command === "START_STREAM",
-      lastSeenMs,
-    });
-  }
-
   return NextResponse.json({
-    telemetry: null,
-    isHardwareOnline: false,
+    telemetry,
+    isHardwareOnline,
     isStreaming: currentCommand.command === "START_STREAM",
     lastSeenMs,
   });
 }
+

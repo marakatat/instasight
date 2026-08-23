@@ -10,7 +10,11 @@ export type EegTelemetry = {
   motorAttemptProbability: number;
   confidence: number;
   erdPercentage: number;
+  betaErdPercentage?: number;
   isAttemptDetected: boolean;
+  isMovementIntended?: boolean;
+  intentionState?: "resting" | "planning" | "active_attempt" | "recovery";
+  fatigueIndex?: number;
   bands: {
     delta: number;
     theta: number;
