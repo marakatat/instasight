@@ -2,6 +2,13 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 
+export type HardwareStatus =
+  | "OFFLINE"
+  | "SIMULATED_STANDBY"
+  | "HARDWARE_READY"
+  | "STREAMING_REAL"
+  | "STREAMING_SIMULATED";
+
 export type EegTelemetry = {
   deviceId: string;
   sequence: number;
@@ -60,7 +67,7 @@ interface UseEegStreamOptions {
 export function useEegStream(options: UseEegStreamOptions = {}) {
   const {
     deviceId,
-    pollIntervalMs = 150,
+    pollIntervalMs = 250,
     isPolling = true,
     onFeedback,
     onTelemetry,
@@ -68,6 +75,11 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
 
   const [isConnected, setIsConnected] = useState(false);
   const [isHardwareOnline, setIsHardwareOnline] = useState(false);
+  const [isEsp32Online, setIsEsp32Online] = useState(false);
+  const [isBridgeOnline, setIsBridgeOnline] = useState(false);
+  const [isAdsConnected, setIsAdsConnected] = useState(false);
+  const [hardwareStatus, setHardwareStatus] = useState<HardwareStatus>("OFFLINE");
+  const [statusMessage, setStatusMessage] = useState<string>("Checking EEG hardware...");
   const [telemetry, setTelemetry] = useState<EegTelemetry | null>(null);
   const [lastFeedback, setLastFeedback] = useState<CombinedFeedbackEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +98,11 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
     if (!activeDevId) {
       setIsConnected(false);
       setIsHardwareOnline(false);
+      setIsEsp32Online(false);
+      setIsBridgeOnline(false);
+      setIsAdsConnected(false);
+      setHardwareStatus("OFFLINE");
+      setStatusMessage("No device configured");
       setTelemetry(null);
       if (onTelemetryRef.current) onTelemetryRef.current(null);
       return;
@@ -105,9 +122,14 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
         const online = !!data.isHardwareOnline;
         setIsConnected(true);
         setIsHardwareOnline(online);
+        setIsEsp32Online(!!data.isEsp32Online);
+        setIsBridgeOnline(!!data.isBridgeOnline);
+        setIsAdsConnected(!!data.isAdsConnected);
+        setHardwareStatus(data.hardwareStatus || (online ? "HARDWARE_READY" : "OFFLINE"));
+        setStatusMessage(data.statusMessage || (online ? "Hardware Ready" : "Hardware Offline"));
         setError(null);
 
-        if (online && data.telemetry) {
+        if (data.telemetry) {
           setTelemetry(data.telemetry);
           if (onTelemetryRef.current) {
             onTelemetryRef.current(data.telemetry);
@@ -121,12 +143,18 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
       } else {
         setIsConnected(false);
         setIsHardwareOnline(false);
+        setIsEsp32Online(false);
+        setHardwareStatus("OFFLINE");
+        setStatusMessage("Hardware Offline");
         setTelemetry(null);
       }
     } catch (err: any) {
       setError(err?.message || "Failed to poll telemetry");
       setIsConnected(false);
       setIsHardwareOnline(false);
+      setIsEsp32Online(false);
+      setHardwareStatus("OFFLINE");
+      setStatusMessage("Hardware Offline");
       setTelemetry(null);
     } finally {
       isPollingRef.current = false;
@@ -137,6 +165,11 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
     if (!activeDevId) {
       setIsConnected(false);
       setIsHardwareOnline(false);
+      setIsEsp32Online(false);
+      setIsBridgeOnline(false);
+      setIsAdsConnected(false);
+      setHardwareStatus("OFFLINE");
+      setStatusMessage("No device ID");
       setTelemetry(null);
       if (pollRef.current) {
         clearInterval(pollRef.current);
@@ -208,6 +241,11 @@ export function useEegStream(options: UseEegStreamOptions = {}) {
   return {
     isConnected,
     isHardwareOnline,
+    isEsp32Online,
+    isBridgeOnline,
+    isAdsConnected,
+    hardwareStatus,
+    statusMessage,
     telemetry,
     lastFeedback,
     setLastFeedback,

@@ -5,10 +5,7 @@ import { EegTelemetry } from "@/lib/eeg/useEegStream";
 
 /**
  * POST /api/device/telemetry
- * Called by ESP32 via HTTP POST
- * Body can contain:
- * 1. Raw ADS1115 sample batch: { deviceId, sessionId, sequence, samples: number[], samples_o?: number[] }
- * 2. Or pre-processed metrics: { deviceId, signalQuality, motorAttemptProbability, ... }
+ * Called by ESP32 or Python Phone Bridge
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +23,7 @@ export async function POST(request: NextRequest) {
       // Process raw ADC samples through native TypeScript DSP engine
       telemetry = processRawEegBatch(deviceId, sequence, body.samples, body.samples_o, sessionId);
     } else if (typeof body.signalQuality === "number") {
-      // Pre-processed telemetry passed directly from physical hardware
+      // Pre-processed telemetry passed directly
       telemetry = {
         deviceId,
         sequence,
@@ -35,7 +32,11 @@ export async function POST(request: NextRequest) {
         motorAttemptProbability: typeof body.motorAttemptProbability === "number" ? body.motorAttemptProbability : 0,
         confidence: typeof body.confidence === "number" ? body.confidence : 0,
         erdPercentage: typeof body.erdPercentage === "number" ? body.erdPercentage : 0,
+        betaErdPercentage: typeof body.betaErdPercentage === "number" ? body.betaErdPercentage : 0,
         isAttemptDetected: Boolean(body.isAttemptDetected),
+        isMovementIntended: Boolean(body.isMovementIntended),
+        intentionState: body.intentionState || "resting",
+        fatigueIndex: typeof body.fatigueIndex === "number" ? body.fatigueIndex : 1.0,
         bands: body.bands || { delta: 0, theta: 0, alpha: 0, mu: 0, beta: 0, gamma: 0 },
         filteredPreview: Array.isArray(body.filteredPreview) ? body.filteredPreview : [],
         timestamp: Date.now(),
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Save in in-memory device store
     deviceStore.updateTelemetry(deviceId, telemetry);
 
-    // Return active command in response so ESP32 can detect stop command even during POST stream
+    // Return active command in response
     const activeCommand = deviceStore.getCommand(deviceId);
 
     return NextResponse.json({
@@ -66,25 +67,97 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET /api/device/telemetry?deviceId=esp32-01
- * Polled by Next.js browser page to read the latest real hardware telemetry
+ * GET /api/device/telemetry?deviceId=esp32-eeg-01
+ * Polled by Next.js UI to read real hardware state & latest telemetry
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const deviceId = searchParams.get("deviceId")?.trim();
+  const deviceId = searchParams.get("deviceId")?.trim() || "esp32-eeg-01";
 
-  if (!deviceId) {
-    return NextResponse.json({ error: "Missing required deviceId" }, { status: 400 });
+  const { telemetry, isHardwareOnline: isActivelyStreaming, lastSeenMs } = deviceStore.getTelemetry(deviceId);
+
+  let isBridgeOnline = false;
+  let isEsp32Online = false;
+  let isAdsConnected = false;
+  let esp32Url = "http://192.168.155.39";
+
+  if (isActivelyStreaming) {
+    // If active telemetry packets are flowing in right now
+    isBridgeOnline = true;
+    isEsp32Online = true;
+    isAdsConnected = telemetry?.source === "esp32_hardware" && (telemetry.signalQuality > 0.05);
+  } else {
+    // Probe local Python bridge
+    try {
+      const bridgeRes = await fetch("http://127.0.0.1:5001/health", {
+        signal: AbortSignal.timeout(400),
+        cache: "no-store",
+      });
+      if (bridgeRes.ok) {
+        const bridgeData = await bridgeRes.json();
+        isBridgeOnline = true;
+        isEsp32Online = Boolean(bridgeData.esp32Online);
+        isAdsConnected = Boolean(bridgeData.adsConnected);
+        if (bridgeData.esp32Url) esp32Url = bridgeData.esp32Url;
+      }
+    } catch {
+      isBridgeOnline = false;
+    }
+
+    // Direct probe fallback to ESP32 if bridge wasn't reachable or reported offline
+    if (!isEsp32Online) {
+      try {
+        const espRes = await fetch(`${esp32Url}/health`, {
+          headers: { "X-API-Key": "demo-device-key" },
+          signal: AbortSignal.timeout(400),
+          cache: "no-store",
+        });
+        if (espRes.ok) {
+          const espData = await espRes.json();
+          isEsp32Online = true;
+          isAdsConnected = Boolean(espData.adsConnected);
+        }
+      } catch {
+        // unreachable
+      }
+    }
   }
 
-  const { telemetry, isHardwareOnline, lastSeenMs } = deviceStore.getTelemetry(deviceId);
-  const currentCommand = deviceStore.getCommand(deviceId);
+  // Determine unambiguous, human-readable hardware status
+  let hardwareStatus: "OFFLINE" | "SIMULATED_STANDBY" | "HARDWARE_READY" | "STREAMING_REAL" | "STREAMING_SIMULATED";
+  let statusMessage: string;
+
+  if (isActivelyStreaming) {
+    if (isAdsConnected) {
+      hardwareStatus = "STREAMING_REAL";
+      statusMessage = "Live Real EEG • ADS1115 Active";
+    } else {
+      hardwareStatus = "STREAMING_SIMULATED";
+      statusMessage = "Live Stream • Simulation Fallback (No ADC)";
+    }
+  } else if (isEsp32Online) {
+    if (isAdsConnected) {
+      hardwareStatus = "HARDWARE_READY";
+      statusMessage = "Hardware Online • ADS1115 ADC Ready";
+    } else {
+      hardwareStatus = "SIMULATED_STANDBY";
+      statusMessage = "ESP32 Online • No ADS1115 (Simulation Mode)";
+    }
+  } else {
+    hardwareStatus = "OFFLINE";
+    statusMessage = "Hardware Offline (ESP32 Unreachable)";
+  }
 
   return NextResponse.json({
-    telemetry,
-    isHardwareOnline,
-    isStreaming: currentCommand.command === "START_STREAM",
+    telemetry: isActivelyStreaming ? telemetry : null,
+    isHardwareOnline: isEsp32Online || isActivelyStreaming,
+    isBridgeOnline,
+    isEsp32Online,
+    isAdsConnected,
+    isStreaming: isActivelyStreaming,
+    hardwareStatus,
+    statusMessage,
+    esp32Url,
     lastSeenMs,
   });
 }
-

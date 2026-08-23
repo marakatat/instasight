@@ -971,9 +971,13 @@ def bridge_status():
 @app.get("/health")
 def bridge_health():
     esp_online = False
+    ads_connected = False
     try:
         res = requests.get(f"{ESP32_URL}/health", headers={"X-API-Key": DEVICE_KEY}, timeout=1.5)
-        esp_online = (res.status_code == 200)
+        if res.status_code == 200:
+            esp_online = True
+            data = res.json()
+            ads_connected = bool(data.get("adsConnected", False))
     except Exception:
         esp_online = False
 
@@ -983,9 +987,11 @@ def bridge_health():
         "deviceId": DEVICE_ID,
         "esp32Url": ESP32_URL,
         "esp32Online": esp_online,
+        "adsConnected": ads_connected,
         "recording": recording,
         "sessionId": current_session_id
     })
+
 
 
 @app.post("/start")

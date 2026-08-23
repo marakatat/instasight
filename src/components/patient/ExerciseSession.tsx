@@ -36,11 +36,20 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
   }, []);
 
   // Real-time EEG telemetry stream from physical ESP32 / Phone Bridge
-  const { telemetry, isHardwareOnline, startStream, stopStream } = useEegStream({
+  const { 
+    telemetry, 
+    isHardwareOnline, 
+    isAdsConnected, 
+    hardwareStatus, 
+    statusMessage, 
+    startStream, 
+    stopStream 
+  } = useEegStream({
     deviceId,
-    pollIntervalMs: 150,
+    pollIntervalMs: 250,
     isPolling: sessionState === "setup" || sessionState === "active",
   });
+
 
   const hasUploadedRef = useRef(false);
   const stopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -199,18 +208,48 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
             <h1 className="text-xl font-serif font-bold tracking-tight text-white m-0">
               {exercise.name}
             </h1>
-            <div className="flex items-center gap-4 mt-3 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-4 mt-3 text-xs font-mono">
               <span className="flex items-center gap-1.5 text-white/70">
-                <span className={`inline-block w-1.5 h-1.5 ${isCameraReady ? "bg-white" : "bg-white/30 animate-pulse"}`} />
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${isCameraReady ? "bg-white" : "bg-white/30 animate-pulse"}`} />
                 {isCameraReady ? "Camera Live" : "Initializing Camera"}
               </span>
               <span className="text-white/20">|</span>
-              <div className="flex items-center gap-1.5 text-white/70">
-                <span className={`inline-block w-1.5 h-1.5 ${isHardwareOnline ? "bg-emerald-400" : "bg-white/20"}`} />
-                <span>EEG Hardware: <strong className="text-white font-mono">{isHardwareOnline ? "Online" : "Ready"}</strong></span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-block w-2 h-2 rounded-full transition-all duration-300 ${
+                    hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY"
+                      ? "bg-emerald-400 shadow-[0_0_8px_#34d399]"
+                      : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY"
+                      ? "bg-amber-400 shadow-[0_0_8px_#fbbf24]"
+                      : "bg-red-500/80 shadow-[0_0_6px_#ef4444]"
+                  }`}
+                />
+                <span className="text-white/70">
+                  EEG:{" "}
+                  <strong
+                    className={`font-mono font-semibold ${
+                      hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY"
+                        ? "text-emerald-400"
+                        : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY"
+                        ? "text-amber-300"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {hardwareStatus === "STREAMING_REAL"
+                      ? "Online (Real ADS1115 ADC)"
+                      : hardwareStatus === "HARDWARE_READY"
+                      ? "Online (ADS1115 Ready)"
+                      : hardwareStatus === "STREAMING_SIMULATED"
+                      ? "Streaming (Simulated Fallback)"
+                      : hardwareStatus === "SIMULATED_STANDBY"
+                      ? "Online (Simulation Mode • No ADC)"
+                      : "Offline (ESP32 Unreachable)"}
+                  </strong>
+                </span>
               </div>
             </div>
           </div>
+
 
           {/* Top Center/Right: Live Brainwave Frequency & Movement Intention HUD */}
           {sessionState === "active" && telemetry && (
@@ -293,8 +332,14 @@ export function ExerciseSession({ exerciseId }: { exerciseId: string }) {
                 <div className="text-[10px] font-mono tracking-[0.2em] uppercase bg-black/60 px-3 py-1 text-white/70 border border-white/10 backdrop-blur-sm">
                   Position Upper Body & Right Arm
                 </div>
-                <div className="text-[10px] font-mono text-white/40 bg-black/60 px-3 py-1 border border-white/10 backdrop-blur-sm">
-                  Pose & EEG tracking active • Ready to record
+                <div className="text-[10px] font-mono text-white/70 bg-black/80 px-3 py-1.5 border border-white/10 backdrop-blur-sm text-center">
+                  {hardwareStatus === "STREAMING_REAL" || hardwareStatus === "HARDWARE_READY" ? (
+                    <span className="text-emerald-400">● Physical ADS1115 EEG Active</span>
+                  ) : hardwareStatus === "STREAMING_SIMULATED" || hardwareStatus === "SIMULATED_STANDBY" ? (
+                    <span className="text-amber-300">▲ Simulation Fallback (No ADS1115 ADC)</span>
+                  ) : (
+                    <span className="text-red-400">✕ ESP32 Offline • Check Power & Wi-Fi</span>
+                  )}
                 </div>
               </div>
             </div>
