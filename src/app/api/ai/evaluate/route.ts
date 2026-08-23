@@ -132,10 +132,11 @@ Interpretation guide:
 - "incorrect_form" = statistical distribution of INCORRECT repetitions from the dataset  
 - p50 = median correct value, p25/p75 = interquartile range, p5/p95 = extreme bounds
 - If patient's measured angle is below p25 of correct_form or similar to incorrect_form distribution, flag it
+- If "eeg_telemetry" is provided, use "motorAttemptProbability" and "erdPercentage" to gauge their effort. High motor attempt with low range of motion implies physical restriction, not lack of effort. High fatigue (theta waves) means they might need a break.
 
 Generate these 4 fields:
-1. "suggestion": A SHORT warm coaching cue for the patient to hear ALOUD (max 1 sentence, no numbers/jargon). Example: "Great job—try to raise your arm just a little higher."
-2. "clinicalNote": A DENSE technical note for the doctor. Include: measured value, comparison to dataset p25/p50/p75, deviation from correct-form median, whether it resembles correct or incorrect population distribution, and clinical recommendation.
+1. "suggestion": A SHORT warm coaching cue for the patient to hear ALOUD (max 1 sentence, no numbers/jargon). Example: "Great job—try to raise your arm just a little higher." If ERD/motor attempt is high but movement is low, praise their effort instead of just correcting form.
+2. "clinicalNote": A DENSE technical note for the doctor. Include: measured value, comparison to dataset p25/p50/p75, deviation from correct-form median, whether it resembles correct or incorrect population distribution, and clinical recommendation. Also factor in EEG metrics if present.
 3. "severity": "success" if within correct-form IQR, "warning" if below p25 or resembling incorrect distribution, "info" otherwise
 4. "reasonCodes": array of strings like ["ROM_BELOW_DATASET_P25", "ELBOW_FLEXION_MATCHES_INCORRECT_DISTRIBUTION"]
 
@@ -150,6 +151,7 @@ Respond ONLY in pure JSON, no markdown:
     const userMessage = JSON.stringify({
       live_patient_measurements: input.pose,
       repetition_number: input.repetitionNumber,
+      eeg_telemetry: input.eeg,
     });
 
     // 3. Call Gemini API
@@ -201,41 +203,12 @@ Respond ONLY in pure JSON, no markdown:
           exercisePhase: "complete",
           ...input.pose
         },
-        confidence: 0.92,
-        modelName: "openrouter-dots",
-        modelVersion: "1.0",
+        modelName: "gemini-3.5-flash-lite",
         source: "ai",
         therapistReviewed: false
       };
 
       return NextResponse.json(aiEvent);
-    } catch (llmErr) {
-      console.warn("OpenRouter slow or failed, using instant rule-based response:", llmErr);
-      const fallbackEvent: AIFeedbackEvent = {
-        id: crypto.randomUUID(),
-        sessionId: input.sessionId,
-        videoTimeMs: input.videoTimeMs,
-        createdAt: new Date().toISOString(),
-        repetitionNumber: input.repetitionNumber,
-        suggestion: (input.pose.rangeOfMotion && input.pose.rangeOfMotion < 60) 
-          ? "Try lifting your arm slightly higher if comfortable." 
-          : "Good movement form. Maintain this pace.",
-        severity: (input.pose.rangeOfMotion && input.pose.rangeOfMotion < 60) ? "warning" : "success",
-        reasonCodes: (input.pose.rangeOfMotion && input.pose.rangeOfMotion < 60) ? ["RANGE_OF_MOTION_BELOW_TARGET"] : [],
-        evidence: {
-          videoTimeMs: input.videoTimeMs,
-          repetitionNumber: input.repetitionNumber,
-          exercisePhase: "complete",
-          ...input.pose
-        },
-        confidence: 0.88,
-        modelName: "clinical-rules-engine",
-        modelVersion: "1.0",
-        source: "rules",
-        therapistReviewed: false
-      };
-      return NextResponse.json(fallbackEvent);
-    }
   } catch (error: any) {
     if (error.message === "RATE_LIMIT_EXCEEDED") {
       return NextResponse.json({ error: "Rate limit exceeded. Please wait." }, { status: 429 });

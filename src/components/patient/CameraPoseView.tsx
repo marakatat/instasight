@@ -295,8 +295,10 @@ export function CameraPoseView({
                           },
                           eeg: currentEeg ? {
                             signalQuality: currentEeg.signalQuality,
-                            attentionState: currentEeg.attentionState,
-                            fatigueLevel: currentEeg.fatigueLevel,
+                            motorAttemptProbability: currentEeg.motorAttemptProbability,
+                            erdPercentage: currentEeg.erdPercentage,
+                            isAttemptDetected: currentEeg.isAttemptDetected,
+                            fatigueLevel: currentEeg.bands?.theta || 0, // proxy for fatigue using theta waves
                           } : null
                         })
                       })
